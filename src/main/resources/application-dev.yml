@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/marketplace
+    username: marketplace
+    password: marketplace
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+
+app:
+  jwt:
+    # CHANGE ME in real env. Use env var APP_JWT_SECRET in prod.
+    secret: ${APP_JWT_SECRET:dev-only-secret-key-change-me-please-32chars!}
+    access-expiration-ms: 900000
+    refresh-expiration-ms: 604800000
