@@ -9,7 +9,8 @@ spring:
 
 app:
   jwt:
-    # CHANGE ME in real env. Use env var APP_JWT_SECRET in prod.
+    # Dev fallback để chạy local không cần env. Prod KHÔNG dùng default này:
+    # application-prod.yml phải yêu cầu APP_JWT_SECRET (fail-fast khi thiếu).
     secret: ${APP_JWT_SECRET:dev-only-secret-key-change-me-please-32chars!}
     access-expiration-ms: 900000
     refresh-expiration-ms: 604800000

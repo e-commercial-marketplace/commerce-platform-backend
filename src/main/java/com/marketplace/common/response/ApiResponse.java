@@ -2,56 +2,54 @@ package com.marketplace.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
+// Bỏ các field null khỏi JSON để response gọn (ví dụ: success thì không có "error").
 @JsonInclude(JsonInclude.Include.NON_NULL)
 /**
- * Khung response chuẩn cho các API của marketplace: {@code { success, data, error, timestamp }}.
+ * Khung response chuẩn cho mọi API: { success, data, error, timestamp, traceId }.
  *
- * <p>Jackson bỏ các field {@code null}, nên response thành công thường có {@code success=true,
- * data=...} và response lỗi có {@code success=false, error=...}. Mobile app nên đọc
- * {@code success} trước, sau đó mới dùng {@code data} hoặc {@code error.code}; không nên suy đoán
- * thành công chỉ từ HTTP 200 vì response contract vẫn là nguồn sự thật ở application layer.
- *
- * <p>Dùng {@link #ok(Object)} trong controller khi xử lý thành công và {@link #fail(String,
- * String)} qua exception handler khi có lỗi dự đoán được. {@code timestamp} là UTC theo chuẩn
- * {@link Instant}, phù hợp để log và đồng bộ giữa mobile/backend.
+ * <p>Contract này khớp {@code docs/API_CONTRACT.md §2.3}: mọi response có body đều dùng envelope này,
+ * {@code 204 No Content} không có body. {@code traceId} giúp đối chiếu lỗi client với log server.
  *
  * @param success {@code true} nếu xử lý thành công, {@code false} nếu lỗi
- * @param data dữ liệu trả về; thường chỉ có khi {@code success=true}
- * @param error chi tiết lỗi; thường chỉ có khi {@code success=false}
- * @param timestamp thời điểm tạo response theo UTC
+ * @param data dữ liệu trả về (chỉ có khi success = true)
+ * @param error chi tiết lỗi (chỉ có khi success = false)
+ * @param timestamp thời điểm tạo response (UTC)
+ * @param traceId định danh request, sinh mới cho mỗi response
  */
-public record ApiResponse<T>(boolean success, T data, ApiError error, Instant timestamp) {
+public record ApiResponse<T>(boolean success, T data, ApiError error, Instant timestamp, String traceId) {
 
-  /**
-   * Tạo response thành công.
-   *
-   * <p>Ví dụ: {@code return ResponseEntity.ok(ApiResponse.ok(productResponse));}. Với endpoint
-   * không có body, dùng {@code ApiResponse.<Void>ok(null)}.
-   *
-   * @param data payload thành công, có thể là object/list/page response
-   * @param <T> kiểu payload
-   * @return response có {@code success=true}, không có error và timestamp hiện tại
-   */
+  /** Shortcut cho response thành công: success=true + traceId mới + timestamp hiện tại. */
   public static <T> ApiResponse<T> ok(T data) {
-    return new ApiResponse<>(true, data, null, Instant.now());
+    return new ApiResponse<>(true, data, null, Instant.now(), newTraceId());
+  }
+
+  /** Shortcut cho response lỗi không có lỗi field chi tiết. */
+  public static <T> ApiResponse<T> fail(String code, String message) {
+    return fail(code, message, null);
   }
 
   /**
-   * Tạo response lỗi theo contract chung.
+   * Shortcut cho response lỗi kèm lỗi validation từng field.
    *
-   * <p>{@code code} phải ổn định để client xử lý bằng switch/map; {@code message} chỉ là thông tin
-   * hiển thị/log và không được chứa secret hoặc stack trace.
-   *
-   * @param code mã lỗi ổn định, ví dụ {@code VALIDATION_ERROR} hoặc {@code NOT_FOUND}
-   * @param message mô tả an toàn cho client
-   * @param <T> kiểu payload, thường là {@code Void} khi lỗi
-   * @return response có {@code success=false}, không có data và có error
+   * @param fieldErrors map tên field -> thông điệp lỗi, null khi không phải lỗi validation
    */
-  public static <T> ApiResponse<T> fail(String code, String message) {
-    return new ApiResponse<>(false, null, new ApiError(code, message), Instant.now());
+  public static <T> ApiResponse<T> fail(
+      String code, String message, Map<String, String> fieldErrors) {
+    return new ApiResponse<>(
+        false, null, new ApiError(code, message, fieldErrors), Instant.now(), newTraceId());
   }
 
-  /** Chi tiết lỗi: code để client xử lý ổn định, message để hiển thị/log. */
-  public record ApiError(String code, String message) {}
+  /**
+   * Chi tiết lỗi: code để client switch-case, message để hiển thị/log, fieldErrors cho lỗi validation.
+   */
+  public record ApiError(String code, String message, Map<String, String> fieldErrors) {}
+
+  /** Sinh traceId ngẫu nhiên (UUID) cho mỗi response để tương quan với log server. */
+  // TODO (hardening): propagate X-Request-Id/MDC qua filter để trace end-to-end thay vì UUID mới.
+  private static String newTraceId() {
+    return UUID.randomUUID().toString();
+  }
 }

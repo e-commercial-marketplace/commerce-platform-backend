@@ -24,7 +24,9 @@ management:
     health:
       show-details: when-authorized
 
+# Không lộ chi tiết lỗi framework ra API: mọi lỗi nghiệp vụ đi qua GlobalExceptionHandler
+# với message an toàn; các lỗi còn lại (404, type-mismatch...) dùng message mặc định của Spring.
 server:
   error:
-    include-message: always
-    include-binding-errors: always
+    include-message: never
+    include-binding-errors: never

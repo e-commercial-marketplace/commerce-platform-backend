@@ -7,32 +7,43 @@ import com.marketplace.common.exception.ForbiddenException;
 import com.marketplace.common.exception.GlobalExceptionHandler;
 import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.ApiResponse;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Unit test cho response/error contract của common layer.
- *
- * <p>Test gọi thẳng handler thay vì dùng MockMvc vì mục tiêu ở đây là kiểm tra mapping Java object:
- * exception nào thành status/code/body nào. HTTP routing và Spring context được kiểm tra ở test
- * khác; giữ test này thuần giúp feedback nhanh và chỉ ra lỗi contract rõ hơn.
- */
+// Test đơn vị cho khung lỗi chuẩn (khớp docs/API_CONTRACT.md §2.3: envelope + traceId + fieldErrors).
 class GlobalExceptionHandlerTest {
 
-  // Không cần Spring context vì GlobalExceptionHandler không giữ state hay dependency ngoài.
   private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
-  /** Kiểm tra factory success giữ data và không tạo error object. */
   @Test
   void apiResponseOkShape() {
     ApiResponse<String> res = ApiResponse.ok("hello");
     assertThat(res.success()).isTrue();
     assertThat(res.data()).isEqualTo("hello");
     assertThat(res.error()).isNull();
+    // Mỗi response thành công phải có traceId để đối chiếu với log server.
+    assertThat(res.traceId()).isNotBlank();
+    assertThat(res.timestamp()).isNotNull();
   }
 
-  /** Kiểm tra subclass ForbiddenException vẫn được bắt bởi handler của BusinessException. */
+  @Test
+  void failCarriesFieldErrors() {
+    // Lỗi validation phải giữ map field -> message để client highlight từng field.
+    ApiResponse<Void> res =
+        ApiResponse.fail("VALIDATION_ERROR", "quantity: Must be greater than zero",
+            Map.of("quantity", "Must be greater than zero"));
+    assertThat(res.success()).isFalse();
+    assertThat(res.data()).isNull();
+    assertThat(res.error().code()).isEqualTo("VALIDATION_ERROR");
+    assertThat(res.error().fieldErrors()).containsEntry("quantity", "Must be greater than zero");
+    assertThat(res.traceId()).isNotBlank();
+  }
+
   @Test
   void businessExceptionMapped() {
     ResponseEntity<ApiResponse<Void>> res =
@@ -41,9 +52,9 @@ class GlobalExceptionHandlerTest {
     assertThat(res.getBody()).isNotNull();
     assertThat(res.getBody().success()).isFalse();
     assertThat(res.getBody().error().code()).isEqualTo("FORBIDDEN");
+    assertThat(res.getBody().traceId()).isNotBlank();
   }
 
-  /** Kiểm tra lookup thất bại dùng HTTP 404 nhưng vẫn giữ response error contract. */
   @Test
   void notFoundMapped() {
     ResponseEntity<ApiResponse<Void>> res =
@@ -51,20 +62,41 @@ class GlobalExceptionHandlerTest {
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
   }
 
-  /** Kiểm tra lỗi không dự đoán được không làm lộ message nội bộ ra API. */
   @Test
   void unknownMappedTo500() {
+    // Exception lạ phải che message gốc, trả 500 + code INTERNAL_ERROR (tránh lộ nội bộ).
     ResponseEntity<ApiResponse<Void>> res = handler.handleUnknown(new RuntimeException("boom"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     assertThat(res.getBody().error().code()).isEqualTo("INTERNAL_ERROR");
   }
 
-  /** Kiểm tra exception gốc truyền nguyên code/status để các subclass tái sử dụng contract. */
   @Test
   void businessExceptionCarriesStatus() {
     BusinessException ex =
         new BusinessException("TEST", "msg", HttpStatus.UNPROCESSABLE_ENTITY);
     assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     assertThat(ex.getCode()).isEqualTo("TEST");
+  }
+
+  // Serialize JSON thật để chắc envelope trên dây khớp contract (traceId, fieldErrors, NON_NULL).
+  @Test
+  void apiResponseSerializesContractEnvelope() throws Exception {
+    ObjectMapper mapper =
+        new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+    String err =
+        mapper.writeValueAsString(
+            ApiResponse.fail(
+                "VALIDATION_ERROR", "quantity: required", Map.of("quantity", "required")));
+    assertThat(err).contains("\"success\":false");
+    assertThat(err).contains("\"code\":\"VALIDATION_ERROR\"");
+    assertThat(err).contains("\"fieldErrors\":{\"quantity\":\"required\"}");
+    assertThat(err).contains("\"traceId\"");
+
+    String ok = mapper.writeValueAsString(ApiResponse.ok("x"));
+    assertThat(ok).contains("\"success\":true").contains("\"data\":\"x\"");
+    assertThat(ok).doesNotContain("\"error\"");
   }
 }

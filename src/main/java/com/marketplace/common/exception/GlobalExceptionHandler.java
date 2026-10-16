@@ -1,84 +1,73 @@
 package com.marketplace.common.exception;
 
 import com.marketplace.common.response.ApiResponse;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * Điểm chuyển đổi exception từ application layer thành HTTP response thống nhất.
- *
- * <p>Controller/service không cần tự tạo response lỗi cho từng nhánh. Khi exception đi lên boundary
- * này, client luôn nhận {@code ApiResponse} theo các nhóm sau:
- *
- * <ul>
- *   <li>{@link BusinessException}: giữ nguyên mã lỗi và HTTP status đã chọn.
- *   <li>{@link MethodArgumentNotValidException}: 400 với lỗi field đầu tiên của {@code @Valid}.
- *   <li>{@link ConstraintViolationException}: 400 cho request parameter/path validation.
- *   <li>{@link Exception}: 500 với message chung, không làm lộ chi tiết nội bộ.
- * </ul>
- *
- * <p>Handler này chỉ định dạng lỗi. Quyền truy cập, ownership, transaction và business rule vẫn
- * phải được kiểm tra trong service/controller tương ứng.
- */
+// Bắt exception tập trung cho mọi controller -> luôn trả về khung ApiResponse thống nhất.
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-  /**
-   * Map lỗi nghiệp vụ do service chủ động ném.
-   *
-   * @param ex lỗi đã chứa code, message và status phù hợp
-   * @return response có cùng HTTP status và body {@code success=false}
-   */
+  // Lỗi nghiệp vụ do service ném (BusinessException và subclass): giữ nguyên status + code.
   @ExceptionHandler(BusinessException.class)
   public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
     return ResponseEntity.status(ex.getStatus())
         .body(ApiResponse.fail(ex.getCode(), ex.getMessage()));
   }
 
-  /**
-   * Map lỗi validation của {@code @RequestBody @Valid}.
-   *
-   * <p>Hiện tại chỉ trả lỗi field đầu tiên để giữ contract ngắn gọn; client không nên giả định mọi
-   * lỗi trong request đều được liệt kê ở response này.
-   *
-   * @param ex lỗi binding do Spring MVC tạo
-   * @return HTTP 400 với code {@code VALIDATION_ERROR}
-   */
+  // Lỗi validate @Valid trên @RequestBody: trả toàn bộ fieldErrors để client highlight từng field.
+  // Message tổng hợp từ lỗi đầu tiên để tương thích client chỉ đọc message.
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
+    Map<String, String> fieldErrors = new LinkedHashMap<>();
+    for (FieldError f : ex.getBindingResult().getFieldErrors()) {
+      fieldErrors.putIfAbsent(f.getField(), f.getDefaultMessage());
+    }
     String message =
-        ex.getBindingResult().getFieldErrors().stream()
-            .map(f -> f.getField() + ": " + f.getDefaultMessage())
+        fieldErrors.entrySet().stream()
+            .map(e -> e.getKey() + ": " + e.getValue())
             .findFirst()
             .orElse("Validation failed");
-    return ResponseEntity.badRequest().body(ApiResponse.fail("VALIDATION_ERROR", message));
+    return ResponseEntity.badRequest()
+        .body(ApiResponse.fail("VALIDATION_ERROR", message, fieldErrors));
   }
 
-  /**
-   * Map lỗi validation trên {@code @RequestParam} hoặc {@code @PathVariable}.
-   *
-   * @param ex lỗi constraint do Jakarta Validation tạo
-   * @return HTTP 400 với code {@code VALIDATION_ERROR}
-   */
+  // Lỗi validate trên @RequestParam/@PathVariable (@Validated ở controller).
+  // Key là tên field lá (ví dụ "email" thay vì "register.email") để khớp ví dụ fieldErrors trong contract.
   @ExceptionHandler(ConstraintViolationException.class)
   public ResponseEntity<ApiResponse<Void>> handleConstraint(ConstraintViolationException ex) {
-    return ResponseEntity.badRequest().body(ApiResponse.fail("VALIDATION_ERROR", ex.getMessage()));
+    Map<String, String> fieldErrors = new LinkedHashMap<>();
+    for (ConstraintViolation<?> v : ex.getConstraintViolations()) {
+      fieldErrors.putIfAbsent(leafNode(v.getPropertyPath()), v.getMessage());
+    }
+    // Message tổng hợp từ field lá (không dùng ex.getMessage() vì chứa full path).
+    String message =
+        fieldErrors.entrySet().stream()
+            .map(e -> e.getKey() + ": " + e.getValue())
+            .findFirst()
+            .orElse("Validation failed");
+    return ResponseEntity.badRequest()
+        .body(ApiResponse.fail("VALIDATION_ERROR", message, fieldErrors));
   }
 
-  /**
-   * Fallback cho lỗi chưa có handler chuyên biệt.
-   *
-   * <p>Không trả {@code ex.getMessage()} cho mobile app vì message có thể chứa SQL, đường dẫn file
-   * hoặc chi tiết hệ thống. Khi triển khai production nên ghi exception vào logging/observability
-   * nội bộ với correlation id, nhưng vẫn giữ response public ở mức tổng quát.
-   *
-   * @param ex lỗi chưa được phân loại
-   * @return HTTP 500 với code {@code INTERNAL_ERROR} và message an toàn
-   */
+  /** Lấy tên node lá của property path (ví dụ "register.email" -> "email"). */
+  private static String leafNode(jakarta.validation.Path path) {
+    String leaf = null;
+    for (jakarta.validation.Path.Node node : path) {
+      leaf = node.getName();
+    }
+    return leaf != null ? leaf : path.toString();
+  }
+
+  // Fallback cuối cùng: lỗi chưa lường trước -> 500, che message gốc để không lộ chi tiết nội bộ.
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

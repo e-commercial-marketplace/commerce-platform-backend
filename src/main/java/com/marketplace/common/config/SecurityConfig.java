@@ -2,6 +2,7 @@ package com.marketplace.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -12,10 +13,10 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * Cấu hình biên bảo mật của ứng dụng trong Phase 0.
  *
- * <p>Các endpoint health/info và tài liệu OpenAPI được gọi công khai để Docker, người vận hành và
- * frontend có thể kiểm tra ứng dụng. Mọi endpoint khác phải được xác thực. Vì JWT filter của Phase
- * 1 chưa được triển khai trong code hiện tại, comment này mô tả contract mong muốn; không được hiểu
- * là backend đã có đầy đủ luồng register/login/refresh.
+ * <p>Các endpoint health/info, tài liệu OpenAPI và các endpoint public theo
+ * {@code docs/API_CONTRACT.md §2.1} (auth, catalog đọc, review đọc, AI hỏi đáp) được gọi công khai.
+ * Mọi endpoint còn lại phải được xác thực. Vì JWT filter của Phase 1 chưa được triển khai trong code
+ * hiện tại, các endpoint public chưa có controller sẽ trả 404 cho đến khi Phase 1/2/10 bổ sung.
  *
  * <p>Ứng dụng dùng stateless session: request không dựa vào {@code HttpSession}. Khi Phase 1 thêm
  * JWT filter, client phải gửi token trong header {@code Authorization: Bearer <token>}. CSRF được
@@ -45,7 +46,23 @@ public class SecurityConfig {
                         "/v3/api-docs/**", // Swagger OpenAPI
                         "/swagger-ui/**",
                         "/swagger-ui.html")
-                    .permitAll() // các URL trên: public
+                    .permitAll()
+                    // Endpoint public theo API_CONTRACT §2.1 (controller bổ sung ở Phase 1/2/10).
+                    .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
+                    .permitAll() // đăng ký/đăng nhập không cần token
+                    .requestMatchers(HttpMethod.POST, "/api/auth/refresh")
+                    .permitAll() // refresh dùng refresh token, không cần access token
+                    .requestMatchers(HttpMethod.POST, "/api/auth/logout")
+                    .authenticated() // logout yêu cầu access token của chính chủ
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/api/products",
+                        "/api/products/*",
+                        "/api/products/*/reviews",
+                        "/api/categories")
+                    .permitAll() // catalog và review đọc là public
+                    .requestMatchers(HttpMethod.POST, "/api/ai/ask")
+                    .permitAll() // AI hỏi đáp public, không yêu cầu đăng nhập
                     .anyRequest()
                     .authenticated()); // còn lại: cần auth
     return http.build();
