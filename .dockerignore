@@ -1,0 +1,14 @@
+# Giữ build context nhỏ: chỉ cần pom.xml + src/ + Dockerfile.
+target/
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+README.md
+docker-compose.yml
+Dockerfile
