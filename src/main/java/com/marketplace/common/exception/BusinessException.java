@@ -1,5 +1,6 @@
 package com.marketplace.common.exception;
 
+import com.marketplace.common.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -7,8 +8,7 @@ import org.springframework.http.HttpStatus;
  *
  * <p>Kế thừa {@link RuntimeException} để service có thể dừng luồng ngay tại rule vi phạm mà không
  * phải truyền exception qua mọi method trung gian. {@link GlobalExceptionHandler} bắt exception
- * này ở biên controller và chuyển thành {@link com.marketplace.common.response.ApiResponse#fail}
- * với HTTP status tương ứng.
+ * này ở biên controller và chuyển thành {@link ApiResponse} với HTTP status tương ứng.
  *
  * <p>Dùng exception này cho các rule như voucher hết hạn, seller không sở hữu product hoặc resource
  * không tồn tại. Không dùng nó để che lỗi lập trình hoặc lỗi hạ tầng bất ngờ; các lỗi đó phải đi qua
