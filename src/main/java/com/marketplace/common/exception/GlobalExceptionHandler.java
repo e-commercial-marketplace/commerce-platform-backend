@@ -3,6 +3,7 @@ package com.marketplace.common.exception;
 import com.marketplace.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -59,9 +60,9 @@ public class GlobalExceptionHandler {
   }
 
   /** Lấy tên node lá của property path (ví dụ "register.email" -> "email"). */
-  private static String leafNode(jakarta.validation.Path path) {
+  private static String leafNode(Path path) {
     String leaf = null;
-    for (jakarta.validation.Path.Node node : path) {
+    for (Path.Node node : path) {
       leaf = node.getName();
     }
     return leaf != null ? leaf : path.toString();
