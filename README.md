@@ -43,6 +43,44 @@ the current backend scaffold does not claim that those features are fully implem
 
 - Java 21, Maven 3.9+, Docker 24+ (Compose v2)
 
+## Configuration
+
+### Runtime values
+
+`src/main/resources/application.yml` is the only runtime configuration file; the environment-specific
+values come from environment variables:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `DB_URL` | yes | JDBC URL, for example `jdbc:postgresql://localhost:5432/marketplace` |
+| `DB_USERNAME` | yes | Database user |
+| `DB_PASSWORD` | yes | Database password |
+| `APP_JWT_SECRET` | yes | JWT signing key (at least 32 characters). No default on purpose: a missing secret fails fast at startup |
+| `DB_NAME` | Compose only | Database name used by the Compose Postgres service and by the JDBC URL inside the container |
+| `DB_URL_IN_CONTAINER` | no | JDBC URL for the API container when the database runs outside Compose (for example Neon) |
+| `APP_JWT_ACCESS_EXPIRATION_MS` | no | Access-token lifetime in ms; default `900000` (15 minutes) |
+| `APP_JWT_REFRESH_EXPIRATION_MS` | no | Refresh-token lifetime in ms; default `604800000` (7 days) |
+| `JPA_SHOW_SQL` | no | Log Hibernate SQL; default `false` |
+
+For local runs, copy `.env.example` to `.env` (same folder as this README) and adjust the values.
+`.env` is git-ignored, `.env.example` is the committed template. Spring imports `.env` whenever the
+`test` profile is not active, and Docker Compose also reads it to resolve `${...}` in
+`docker-compose.yml`. The file is parsed as Java properties: write plain `KEY=value` lines, without
+quotes, without an `export` prefix, and without backslashes (properties treats `\` as an escape
+character).
+
+`src/test/resources/application-test.yml` is test-only (`test` profile: H2 in-memory, Flyway off) and
+is never packaged into the application.
+
+### API version prefix
+
+`api.prefix: /api/v1` in `application.yml`. `WebConfig` applies that prefix to every `@RestController`
+inside `com.marketplace`, so controller code declares routes without it (for example
+`@RequestMapping("/products")` exposes `/api/v1/products`). Actuator (`/actuator/**`), OpenAPI
+(`/v3/api-docs`) and Swagger UI (`/swagger-ui/**`) keep their unversioned paths — which is why the app
+does not use `server.servlet.context-path` for versioning. Security matchers in `SecurityConfig` must
+use the prefixed URLs.
+
 ## Run
 
 ### Option A — API in a container (recommended with Docker)
@@ -59,20 +97,23 @@ curl http://localhost:8080/actuator/health
 # http://localhost:8080/swagger-ui.html
 ```
 
-Compose starts Postgres first (health-gated), then the API with the `dev` profile and
-`DB_URL=jdbc:postgresql://postgres:5432/marketplace`. The API runs as the non-root `app` user and
+Compose starts Postgres first (health-gated), then the API. Database and JWT values come from
+`backend/.env` when the file exists, otherwise from the local defaults baked into `docker-compose.yml`
+(database `marketplace`, user/password `marketplace`). The API runs as the non-root `app` user and
 exposes the actuator healthcheck declared in the `Dockerfile`.
 
 ### Option B — DB in a container, API on the host
 
 ```powershell
-# 1. Start DB only
+# 1. Create the local environment file (first time only)
+Copy-Item .env.example .env
+# 2. Start DB only
 docker compose up -d postgres
-# 2. Run API (dev profile -> localhost:5432/marketplace)
+# 3. Run API (reads .env -> localhost:5432/marketplace)
 mvn spring-boot:run
-# 3. Health
+# 4. Health
 curl http://localhost:8080/actuator/health
-# 4. Swagger
+# 5. Swagger
 # http://localhost:8080/swagger-ui.html
 ```
 
@@ -84,14 +125,6 @@ docker compose down              # stop services, keep data
 docker compose down -v           # stop services and delete the Postgres volume
 docker build -t marketplace-backend:local .   # build the API image without Compose
 ```
-
-## Profiles
-
-- `dev` (`application-dev.yml`): local Postgres `marketplace/marketplace`; override with
-  `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
-- `test` (`application-test.yml`): H2 in-memory, Flyway off
-- Override JWT secret: `$env:APP_JWT_SECRET="..."` (Compose reads it from the shell or `.env`)
-- Override JVM options in the container: `JAVA_OPTS` (for example `-XX:MaxRAMPercentage=50`)
 
 ## Migrations
 
@@ -109,7 +142,8 @@ order/payment/voucher/shipment, review, human-chat, and persisted AI-chat tables
 ## Package layout
 
 `com.marketplace.{auth,user,catalog,cart,order,payment,shipment,voucher,review,chat,ai,common}`
-`common/{exception,response,config,util}` — `ApiResponse`, `GlobalExceptionHandler`, `SecurityConfig` stub (JWT in Phase 1).
+`common/{exception,response,config,util}` — `ApiResponse`, `GlobalExceptionHandler`, `SecurityConfig`
+(JWT filter in Phase 1), `WebConfig` (central `/api/v1` prefix for REST controllers).
 
 ## Tests
 
