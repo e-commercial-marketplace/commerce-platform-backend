@@ -1,10 +1,15 @@
 # Local stack: PostgreSQL 16 (pgvector) + backend API.
 #   docker compose up -d --build     -> dựng image backend và chạy cả 2 service
 #   docker compose up -d postgres    -> chỉ chạy DB (khi chạy API bằng mvn spring-boot:run)
+#   docker compose up -d --no-deps backend -> chỉ chạy API, không kéo theo Postgres local
+#                                       (dùng khi DB nằm ngoài compose, ví dụ Supabase)
 #   docker compose down -v           -> xoá container và volume dữ liệu Postgres
 # Compose tự đọc backend/.env (copy từ .env.example) để thay các biến ${...} bên dưới;
 # thiếu .env thì dùng giá trị mặc định local trong file này.
 services:
+  # Chỉ cần khi dùng DB local của compose: nếu DB_URL trong .env trỏ tới DB bên ngoài
+  # (Supabase/Neon) thì service này vẫn chạy khi gọi `docker compose up`, nhưng backend
+  # không kết nối tới nó. Muốn bỏ hẳn, dùng: docker compose up -d --no-deps backend
   postgres:
     image: pgvector/pgvector:pg16
     container_name: marketplace-postgres
@@ -36,10 +41,13 @@ services:
         # Chờ DB nhận kết nối rồi mới start API để Flyway migrate không bị race.
         condition: service_healthy
     environment:
-      # Host "postgres" là tên service trong network của compose, không phải localhost.
-      # DB_URL trong .env dành cho chạy API trên host; muốn container nối ra DB ngoài compose
-      # (ví dụ Neon) thì đặt DB_URL_IN_CONTAINER.
-      DB_URL: ${DB_URL_IN_CONTAINER:-jdbc:postgresql://postgres:5432/${DB_NAME:-marketplace}}
+      # DB_URL dùng chung cho cả hai cách chạy: container (compose truyền biến này vào app)
+      # và `mvn spring-boot:run` trên host (Spring tự đọc .env).
+      #   - DB ngoài compose (Supabase/Neon): đặt DB_URL trong .env, container nối thẳng ra đó.
+      #   - DB trên máy host mà API chạy trong container: dùng host.docker.internal, KHÔNG
+      #     dùng localhost (localhost trong container là chính container đó).
+      #   - Không có .env: mặc định nối service "postgres" bên dưới (host = tên service).
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/${DB_NAME:-marketplace}}
       DB_USERNAME: ${DB_USERNAME:-marketplace}
       DB_PASSWORD: ${DB_PASSWORD:-marketplace}
       # Chỉ dùng cho local dev; đặt APP_JWT_SECRET trong .env khi cần giá trị khác.

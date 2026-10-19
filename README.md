@@ -52,12 +52,11 @@ values come from environment variables:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `DB_URL` | yes | JDBC URL, for example `jdbc:postgresql://localhost:5432/marketplace` |
+| `DB_URL` | yes | JDBC URL, for example `jdbc:postgresql://localhost:5432/marketplace`. Shared by `mvn spring-boot:run` and the API container: point it at Supabase/Neon and the container connects there too |
 | `DB_USERNAME` | yes | Database user |
 | `DB_PASSWORD` | yes | Database password |
 | `APP_JWT_SECRET` | yes | JWT signing key (at least 32 characters). No default on purpose: a missing secret fails fast at startup |
-| `DB_NAME` | Compose only | Database name used by the Compose Postgres service and by the JDBC URL inside the container |
-| `DB_URL_IN_CONTAINER` | no | JDBC URL for the API container when the database runs outside Compose (for example Neon) |
+| `DB_NAME` | Compose only | Database name used by the Compose Postgres service and by the *default* JDBC URL when `DB_URL` is not set |
 | `APP_JWT_ACCESS_EXPIRATION_MS` | no | Access-token lifetime in ms; default `900000` (15 minutes) |
 | `APP_JWT_REFRESH_EXPIRATION_MS` | no | Refresh-token lifetime in ms; default `604800000` (7 days) |
 | `JPA_SHOW_SQL` | no | Log Hibernate SQL; default `false` |
@@ -71,6 +70,25 @@ character).
 
 `src/test/resources/application-test.yml` is test-only (`test` profile: H2 in-memory, Flyway off) and
 is never packaged into the application.
+
+### Managed database (Supabase/Neon) in both run modes
+
+`DB_URL` is used by `mvn spring-boot:run` and by the API container, so a managed database needs no
+container-specific copy of the URL:
+
+```dotenv
+DB_URL=jdbc:postgresql://aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+DB_USERNAME=postgres.<project-ref>
+DB_PASSWORD=change-me
+```
+
+Two consequences worth knowing:
+
+- `docker compose up` still starts the local `postgres` service (the API waits for its healthcheck)
+  even when `DB_URL` points outside Compose. To run the API container alone:
+  `docker compose up -d --no-deps backend`.
+- A `DB_URL` containing `localhost` resolves to whichever machine runs the process. From inside a
+  container use `host.docker.internal` instead.
 
 ### API version prefix
 
@@ -99,8 +117,14 @@ curl http://localhost:8080/actuator/health
 
 Compose starts Postgres first (health-gated), then the API. Database and JWT values come from
 `backend/.env` when the file exists, otherwise from the local defaults baked into `docker-compose.yml`
-(database `marketplace`, user/password `marketplace`). The API runs as the non-root `app` user and
-exposes the actuator healthcheck declared in the `Dockerfile`.
+(database `marketplace`, user/password `marketplace`). When `DB_URL` points at a managed database
+(Supabase/Neon), the local Postgres service is unused — run `docker compose up -d --no-deps backend`
+to skip it. The API runs as the non-root `app` user and exposes the actuator healthcheck declared in
+the `Dockerfile`.
+
+Running both the API container and the Compose Postgres while `.env` holds a `localhost` `DB_URL` does
+not work: `localhost` inside a container is that container itself, so use
+`DB_URL=jdbc:postgresql://host.docker.internal:5432/marketplace` instead (see `.env.example`).
 
 ### Option B — DB in a container, API on the host
 
@@ -109,7 +133,7 @@ exposes the actuator healthcheck declared in the `Dockerfile`.
 Copy-Item .env.example .env
 # 2. Start DB only
 docker compose up -d postgres
-# 3. Run API (reads .env -> localhost:5432/marketplace)
+# 3. Run API (uses DB_URL from .env — the same variable the container gets)
 mvn spring-boot:run
 # 4. Health
 curl http://localhost:8080/actuator/health
@@ -121,6 +145,7 @@ curl http://localhost:8080/actuator/health
 
 ```powershell
 docker compose up -d postgres    # DB only
+docker compose up -d --no-deps backend   # API only (managed DB in .env, no local Postgres)
 docker compose down              # stop services, keep data
 docker compose down -v           # stop services and delete the Postgres volume
 docker build -t marketplace-backend:local .   # build the API image without Compose
@@ -138,6 +163,9 @@ docker build -t marketplace-backend:local .   # build the API image without Comp
 Once a migration has been applied, add a new version instead of editing it to avoid Flyway checksum
 mismatches. V13 adds optional `phone` and `address` columns to `users` and creates catalog, cart,
 order/payment/voucher/shipment, review, human-chat, and persisted AI-chat tables.
+
+Development seed data lives in `seed/` — see `seed/README.md`. It is not a Flyway migration and never
+runs automatically.
 
 ## Package layout
 
