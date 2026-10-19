@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 // Bắt exception tập trung cho mọi controller -> luôn trả về khung ApiResponse thống nhất.
 @RestControllerAdvice
@@ -73,5 +74,13 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(ApiResponse.fail("INTERNAL_ERROR", "Unexpected error"));
+  }
+
+  // Request tới đường dẫn không khớp handler nào (client gọi sai URL): Spring ném
+  // NoResourceFoundException, phải trả 404 theo contract thay vì để fallback đổi thành 500.
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(ApiResponse.fail("RESOURCE_NOT_FOUND", "Resource not found"));
   }
 }
