@@ -1,8 +1,14 @@
+# Cấu hình runtime duy nhất của backend (không còn application-dev.yml).
+# Các giá trị phụ thuộc môi trường (DB, JWT secret) đọc từ biến môi trường; khi chạy local
+# Spring nạp thêm file .env ở thư mục chạy lệnh — xem .env.example để tạo file đó.
 spring:
   application:
     name: marketplace
-  profiles:
-    active: dev
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
     hibernate:
@@ -10,10 +16,35 @@ spring:
     properties:
       hibernate:
         format_sql: true
+    show-sql: ${JPA_SHOW_SQL:false}
   flyway:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+
+---
+# Chỉ nạp .env khi KHÔNG chạy test: test phải cố định theo src/test/resources/application-test.yml
+# (H2, Flyway off), không phụ thuộc file .env trên máy từng người.
+# optional: thiếu .env vẫn chạy, miễn là biến môi trường đã được export hoặc Compose truyền vào.
+spring:
+  config:
+    activate:
+      on-profile: "!test"
+    import: optional:file:./.env[.properties]
+
+---
+# Prefix version dùng chung cho mọi REST controller (áp dụng tập trung ở WebConfig).
+# Controller khai báo route KHÔNG kèm prefix, ví dụ @RequestMapping("/products"); URL bên ngoài
+# là /api/v1/products. Actuator và Swagger giữ đường dẫn riêng, không bị prefix.
+api:
+  prefix: /api/v1
+
+app:
+  jwt:
+    # Bắt buộc: không có default để thiếu secret thì fail-fast lúc khởi động.
+    secret: ${APP_JWT_SECRET}
+    access-expiration-ms: ${APP_JWT_ACCESS_EXPIRATION_MS:900000}
+    refresh-expiration-ms: ${APP_JWT_REFRESH_EXPIRATION_MS:604800000}
 
 management:
   endpoints:
