@@ -12,8 +12,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 // Test đơn vị cho khung lỗi chuẩn (khớp docs/API_CONTRACT.md §2.3: envelope + traceId + fieldErrors).
 class GlobalExceptionHandlerTest {
@@ -68,6 +70,19 @@ class GlobalExceptionHandlerTest {
     ResponseEntity<ApiResponse<Void>> res = handler.handleUnknown(new RuntimeException("boom"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     assertThat(res.getBody().error().code()).isEqualTo("INTERNAL_ERROR");
+  }
+
+  @Test
+  void unmappedRouteMappedTo404() {
+    // Đường dẫn không khớp handler nào phải trả 404 (không phải 500) theo contract: fallback
+    // handleUnknown không được "nuốt" NoResourceFoundException của Spring.
+    ResponseEntity<ApiResponse<Void>> res =
+        handler.handleNoResourceFound(
+            new NoResourceFoundException(HttpMethod.GET, "/api/v1/not-a-route"));
+    assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(res.getBody()).isNotNull();
+    assertThat(res.getBody().error().code()).isEqualTo("RESOURCE_NOT_FOUND");
+    assertThat(res.getBody().error().message()).doesNotContain("/api/v1/not-a-route");
   }
 
   @Test
