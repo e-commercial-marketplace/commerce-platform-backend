@@ -2,22 +2,24 @@
 #   docker compose up -d --build     -> dựng image backend và chạy cả 2 service
 #   docker compose up -d postgres    -> chỉ chạy DB (khi chạy API bằng mvn spring-boot:run)
 #   docker compose down -v           -> xoá container và volume dữ liệu Postgres
+# Compose tự đọc backend/.env (copy từ .env.example) để thay các biến ${...} bên dưới;
+# thiếu .env thì dùng giá trị mặc định local trong file này.
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: marketplace-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: marketplace
-      POSTGRES_USER: marketplace
-      POSTGRES_PASSWORD: marketplace
+      POSTGRES_DB: ${DB_NAME:-marketplace}
+      POSTGRES_USER: ${DB_USERNAME:-marketplace}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-marketplace}
     ports:
       # Chỉ mở trên loopback để máy ngoài không truy cập trực tiếp được DB.
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U marketplace -d marketplace"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-marketplace} -d ${DB_NAME:-marketplace}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -34,12 +36,13 @@ services:
         # Chờ DB nhận kết nối rồi mới start API để Flyway migrate không bị race.
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: dev
       # Host "postgres" là tên service trong network của compose, không phải localhost.
-      DB_URL: jdbc:postgresql://postgres:5432/marketplace
-      DB_USERNAME: marketplace
-      DB_PASSWORD: marketplace
-      # Chỉ dùng cho local dev; đặt APP_JWT_SECRET trong shell hoặc file .env khi cần giá trị khác.
+      # DB_URL trong .env dành cho chạy API trên host; muốn container nối ra DB ngoài compose
+      # (ví dụ Neon) thì đặt DB_URL_IN_CONTAINER.
+      DB_URL: ${DB_URL_IN_CONTAINER:-jdbc:postgresql://postgres:5432/${DB_NAME:-marketplace}}
+      DB_USERNAME: ${DB_USERNAME:-marketplace}
+      DB_PASSWORD: ${DB_PASSWORD:-marketplace}
+      # Chỉ dùng cho local dev; đặt APP_JWT_SECRET trong .env khi cần giá trị khác.
       APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-secret-key-change-me-please-32chars!}
     ports:
       - "127.0.0.1:8080:8080"
