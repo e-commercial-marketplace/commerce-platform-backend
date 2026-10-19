@@ -1,13 +1,13 @@
 # Marketplace Backend — Phase 0 Foundation
 
-Modular monolith: Spring Boot 3.3.5 + Java 21 + PostgreSQL 16 (pgvector) + Flyway.
+Modular monolith: Spring Boot 3.4.4 + Java 21 + PostgreSQL 16 (pgvector) + Flyway.
 
 ## Tech stack
 
 ### Runtime and build
 
 - Java 21
-- Spring Boot 3.3.5
+- Spring Boot 3.4.4
 - Maven 3.9+
 - Docker 24+ with Docker Compose v2 for the local PostgreSQL/pgvector container and the backend API image
 - Multi-stage `Dockerfile`: Maven build stage (JDK 21) + Temurin 21 JRE Alpine runtime, non-root user
@@ -16,7 +16,7 @@ Modular monolith: Spring Boot 3.3.5 + Java 21 + PostgreSQL 16 (pgvector) + Flywa
 
 - Spring Web MVC for REST endpoints
 - Spring Validation for request validation
-- Springdoc OpenAPI 2.5.0 for Swagger/OpenAPI documentation
+- Springdoc OpenAPI 2.7.0 for Swagger/OpenAPI documentation
 - Spring Boot Actuator for health and operational endpoints
 - Spring WebSocket for the planned human-chat flow
 
@@ -25,6 +25,7 @@ Modular monolith: Spring Boot 3.3.5 + Java 21 + PostgreSQL 16 (pgvector) + Flywa
 - PostgreSQL 16 with the `pgvector/pgvector:pg16` image
 - Spring Data JPA/Hibernate for persistence
 - Lombok for entity boilerplate (getters/setters and protected JPA no-args constructors)
+- MapStruct 1.6.3 for entity/DTO mapping (annotation processor wired with Lombok through `lombok-mapstruct-binding`)
 - Flyway for versioned database migrations
 - Spring Security for authentication and authorization
 - JJWT 0.12.6 for JWT processing
