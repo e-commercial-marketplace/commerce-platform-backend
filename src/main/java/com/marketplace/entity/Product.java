@@ -60,4 +60,25 @@ public class Product {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "seller_id", nullable = false)
   private User seller;
+
+  /** Tạo product mới ở trạng thái đang bán ({@code active = true}), chưa có đánh giá. */
+  public static Product create(
+      String name,
+      String description,
+      String imageUrl,
+      BigDecimal price,
+      int stock,
+      Category category,
+      User seller) {
+    Product product = new Product();
+    product.name = name;
+    product.description = description;
+    product.imageUrl = imageUrl;
+    product.price = price;
+    product.stock = stock;
+    product.category = category;
+    product.seller = seller;
+    product.active = true;
+    return product;
+  }
 }

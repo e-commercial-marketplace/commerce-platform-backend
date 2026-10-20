@@ -27,4 +27,11 @@ public class Category {
 
   @Column(name = "name", nullable = false, length = 120, unique = true)
   private String name;
+
+  /** Tạo category mới; tên là duy nhất (ràng buộc unique ở DB). */
+  public static Category create(String name) {
+    Category category = new Category();
+    category.name = name;
+    return category;
+  }
 }
