@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,7 +43,7 @@ public class AuthServiceImpl implements AuthService {
     Role role = request.role() == null ? Role.CUSTOMER : request.role();
     // Bước 3: tuyệt đối không cho tự đăng ký ADMIN từ bên ngoài.
     if (role == Role.ADMIN) {
-      throw validationError("Role ADMIN cannot be registered");
+      throw BusinessException.validation("Role ADMIN cannot be registered");
     }
     // Bước 4: email đã có người dùng thì từ chối.
     if (userRepository.existsByEmailIgnoreCase(email)) {
@@ -77,8 +76,7 @@ public class AuthServiceImpl implements AuthService {
     if (user == null
         || !passwordEncoder.matches(request.password(), user.getPasswordHash())
         || !user.isEnabled()) {
-      throw new BusinessException(
-          "AUTHENTICATION_REQUIRED", "Invalid email or password", HttpStatus.UNAUTHORIZED);
+      throw BusinessException.unauthorized("Invalid email or password");
     }
     // Bước 3: mọi thứ đều đúng, phát hành cặp token.
     return issueTokens(user);
@@ -114,11 +112,6 @@ public class AuthServiceImpl implements AuthService {
 
   // Lỗi 400 khi email đã được dùng.
   private static BusinessException emailTaken() {
-    return validationError("Email is already registered");
-  }
-
-  // Tạo lỗi 400 VALIDATION_ERROR với nội dung tuỳ ý.
-  private static BusinessException validationError(String message) {
-    return new BusinessException("VALIDATION_ERROR", message, HttpStatus.BAD_REQUEST);
+    return BusinessException.validation("Email is already registered");
   }
 }

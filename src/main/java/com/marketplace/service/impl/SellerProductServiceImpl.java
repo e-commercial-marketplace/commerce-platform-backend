@@ -28,7 +28,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -180,9 +179,6 @@ public class SellerProductServiceImpl implements SellerProductService {
   private Category findCategory(UUID categoryId) {
     return categoryRepository
         .findById(categoryId)
-        .orElseThrow(
-            () ->
-                new BusinessException(
-                    "VALIDATION_ERROR", "categoryId: unknown category", HttpStatus.BAD_REQUEST));
+        .orElseThrow(() -> BusinessException.validation("categoryId: unknown category"));
   }
 }
