@@ -1,5 +1,6 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.common.util.TimeProvider;
 import com.marketplace.config.JwtProperties;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
@@ -29,8 +30,13 @@ public class JwtServiceImpl implements JwtService {
   // Khoá bí mật dùng để KÝ token lúc tạo và KIỂM TRA chữ ký lúc đọc.
   private final SecretKey key;
 
-  public JwtServiceImpl(JwtProperties props) {
+  // Nguồn thời gian dùng chung của dự án. Lấy giờ qua TimeProvider (thay vì Instant.now() trực tiếp) cho
+  // nhất quán với RefreshTokenServiceImpl và để sau này test có thể điều khiển đồng hồ.
+  private final TimeProvider timeProvider;
+
+  public JwtServiceImpl(JwtProperties props, TimeProvider timeProvider) {
     this.props = props;
+    this.timeProvider = timeProvider;
     // Đổi chuỗi secret thành khoá HMAC. Secret ngắn hơn 32 byte thì thư viện ném lỗi ngay lúc khởi động
     // (fail-fast có chủ đích: thà app không chạy còn hơn chạy với khoá yếu).
     this.key = Keys.hmacShaKeyFor(props.secret().getBytes(StandardCharsets.UTF_8));
@@ -39,7 +45,7 @@ public class JwtServiceImpl implements JwtService {
   // Tạo access token cho một người dùng (gọi lúc đăng nhập/đăng ký/refresh).
   @Override
   public String generateAccessToken(User user) {
-    Instant now = Instant.now(); // thời điểm hiện tại, dùng cho "tạo lúc" và "hết hạn lúc"
+    Instant now = timeProvider.now(); // thời điểm hiện tại, dùng cho "tạo lúc" và "hết hạn lúc"
     return Jwts.builder()
         // "sub" (subject): token này của ai, ở đây là id người dùng
         .subject(user.getId().toString())

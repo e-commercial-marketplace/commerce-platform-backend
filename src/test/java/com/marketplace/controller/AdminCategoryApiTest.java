@@ -18,8 +18,7 @@ import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
-import com.marketplace.repository.UserRepository;
-import com.marketplace.service.JwtService;
+import com.marketplace.support.TestSupport;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,7 +31,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
  * Kiểm thử API quản lý category của admin theo contract catalog: tạo, đổi tên, xoá; tên không trùng;
@@ -46,16 +44,15 @@ class AdminCategoryApiTest {
   private static final String BASE = "/api/v1/admin/categories";
 
   @Autowired private MockMvc mvc;
-  @Autowired private UserRepository users;
   @Autowired private CategoryRepository categories;
   @Autowired private ProductRepository products;
-  @Autowired private JwtService jwtService;
+  @Autowired private TestSupport support;
 
   private User admin;
 
   @BeforeEach
   void setUp() {
-    admin = user(Role.ADMIN);
+    admin = support.user(Role.ADMIN, null);
   }
 
   // ---------- tạo ----------
@@ -67,7 +64,7 @@ class AdminCategoryApiTest {
     // Tên có khoảng trắng hai đầu được cắt đi trước khi lưu.
     String id =
         idOf(
-            send(post(BASE), admin, "{\"name\":\"  " + name + "  \"}")
+            support.send(mvc, post(BASE), admin, "{\"name\":\"  " + name + "  \"}")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.name").value(name)));
 
@@ -87,7 +84,7 @@ class AdminCategoryApiTest {
 
     // Customer và seller đều sai role: 403 FORBIDDEN.
     for (Role role : new Role[] {Role.CUSTOMER, Role.SELLER}) {
-      send(post(BASE), user(role), json)
+      support.send(mvc, post(BASE), support.user(role, null), json)
           .andExpect(status().isForbidden())
           .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -96,7 +93,7 @@ class AdminCategoryApiTest {
   @Test
   void blankMissingOrDuplicateNamesReturn400() throws Exception {
     String name = "Dup-" + UUID.randomUUID();
-    send(post(BASE), admin, "{\"name\":\"" + name + "\"}").andExpect(status().isCreated());
+    support.send(mvc, post(BASE), admin, "{\"name\":\"" + name + "\"}").andExpect(status().isCreated());
 
     String[] invalidBodies = {
       "{\"name\":\"\"}", // trống
@@ -107,7 +104,7 @@ class AdminCategoryApiTest {
       "{\"name\":\"" + name.toUpperCase() + "\"}" // trùng khác hoa thường
     };
     for (String invalid : invalidBodies) {
-      send(post(BASE), admin, invalid)
+      support.send(mvc, post(BASE), admin, invalid)
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
@@ -123,22 +120,22 @@ class AdminCategoryApiTest {
 
     // Đổi sang tên mới hợp lệ.
     String renamed = "Renamed-" + UUID.randomUUID();
-    send(patch(BASE + "/" + id), admin, "{\"name\":\"" + renamed + "\"}")
+    support.send(mvc, patch(BASE + "/" + id), admin, "{\"name\":\"" + renamed + "\"}")
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.name").value(renamed));
 
     // Đổi sang tên đang thuộc category khác thì bị từ chối.
-    send(patch(BASE + "/" + id), admin, "{\"name\":\"" + other.getName() + "\"}")
+    support.send(mvc, patch(BASE + "/" + id), admin, "{\"name\":\"" + other.getName() + "\"}")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 
     // Đổi hoa thường của chính tên mình thì được phép (không tính là trùng với category khác).
-    send(patch(BASE + "/" + id), admin, "{\"name\":\"" + renamed.toUpperCase() + "\"}")
+    support.send(mvc, patch(BASE + "/" + id), admin, "{\"name\":\"" + renamed.toUpperCase() + "\"}")
         .andExpect(status().isOk());
 
     // Tên trống thì 400; id không tồn tại thì 404.
-    send(patch(BASE + "/" + id), admin, "{\"name\":\"\"}").andExpect(status().isBadRequest());
-    send(patch(BASE + "/" + UUID.randomUUID()), admin, "{\"name\":\"X\"}")
+    support.send(mvc, patch(BASE + "/" + id), admin, "{\"name\":\"\"}").andExpect(status().isBadRequest());
+    support.send(mvc, patch(BASE + "/" + UUID.randomUUID()), admin, "{\"name\":\"X\"}")
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
   }
@@ -149,7 +146,7 @@ class AdminCategoryApiTest {
   void deletingAnEmptyCategoryReturns204() throws Exception {
     Category empty = category("Empty-" + UUID.randomUUID());
 
-    mvc.perform(delete(BASE + "/" + empty.getId()).header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+    mvc.perform(delete(BASE + "/" + empty.getId()).header(HttpHeaders.AUTHORIZATION, support.bearer(admin)))
         .andExpect(status().isNoContent())
         .andExpect(content().string(""));
 
@@ -159,14 +156,12 @@ class AdminCategoryApiTest {
   @Test
   void categoryWithProductsCannotBeDeleted() throws Exception {
     Category used = category("Used-" + UUID.randomUUID());
-    User seller = user(Role.SELLER);
-    seller.setSellerStatus(SellerStatus.APPROVED);
-    users.save(seller);
+    User seller = support.user(Role.SELLER, SellerStatus.APPROVED);
     Product hidden = Product.create("P", "d", null, new BigDecimal("10.00"), 1, used, seller);
     hidden.setActive(false); // product đã ẩn vẫn tính là "còn product", vì còn tham chiếu tới category
     products.save(hidden);
 
-    mvc.perform(delete(BASE + "/" + used.getId()).header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+    mvc.perform(delete(BASE + "/" + used.getId()).header(HttpHeaders.AUTHORIZATION, support.bearer(admin)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
 
@@ -175,34 +170,15 @@ class AdminCategoryApiTest {
 
   @Test
   void deletingAnUnknownCategoryIs404() throws Exception {
-    mvc.perform(delete(BASE + "/" + UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+    mvc.perform(delete(BASE + "/" + UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, support.bearer(admin)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
   }
 
   // ---------- hàm hỗ trợ ----------
 
-  /** Tạo và lưu một người dùng với role cho trước. */
-  private User user(Role role) {
-    return users.save(User.register("u-" + UUID.randomUUID() + "@test.com", "hash", "Test", role));
-  }
-
-  private String bearer(User user) {
-    return "Bearer " + jwtService.generateAccessToken(user);
-  }
-
   private Category category(String name) {
     return categories.save(Category.create(name));
-  }
-
-  /** Gửi request có body JSON kèm token của người dùng. */
-  private ResultActions send(MockHttpServletRequestBuilder request, User who, String json)
-      throws Exception {
-    return mvc.perform(
-        request
-            .header(HttpHeaders.AUTHORIZATION, bearer(who))
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(json));
   }
 
   private static String idOf(ResultActions result) throws Exception {

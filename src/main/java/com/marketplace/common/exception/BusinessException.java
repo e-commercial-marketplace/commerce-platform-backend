@@ -38,6 +38,22 @@ public class BusinessException extends RuntimeException {
   }
 
   /** @return mã lỗi để {@code ApiResponse.error.code} trả về cho client */
+  /**
+   * Lỗi 400 {@code VALIDATION_ERROR}: dữ liệu client gửi không hợp lệ về nghiệp vụ (ví dụ category
+   * không tồn tại, tên trùng). Dùng hàm này thay vì tự ghi mã lỗi và status ở từng nơi.
+   */
+  public static BusinessException validation(String message) {
+    return new BusinessException("VALIDATION_ERROR", message, HttpStatus.BAD_REQUEST);
+  }
+
+  /**
+   * Lỗi 401 {@code AUTHENTICATION_REQUIRED}: thông tin xác thực sai hoặc không dùng được (mật khẩu
+   * sai, refresh token hết hạn...).
+   */
+  public static BusinessException unauthorized(String message) {
+    return new BusinessException("AUTHENTICATION_REQUIRED", message, HttpStatus.UNAUTHORIZED);
+  }
+
   public String getCode() {
     return code;
   }

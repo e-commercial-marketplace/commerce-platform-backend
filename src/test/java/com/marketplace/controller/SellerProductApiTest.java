@@ -19,7 +19,7 @@ import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
-import com.marketplace.service.JwtService;
+import com.marketplace.support.TestSupport;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +38,7 @@ import org.springframework.test.web.servlet.ResultActions;
  * chỉ cho seller đã APPROVED và chỉ trên product của chính mình.
  *
  * <p>Cách làm: mỗi test tự tạo seller/category riêng (tên ngẫu nhiên) và dựng token bằng
- * {@link JwtService}, nên không phụ thuộc dữ liệu của test khác trong cùng H2.
+ * {@link TestSupport}, nên không phụ thuộc dữ liệu của test khác trong cùng H2.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -51,14 +51,14 @@ class SellerProductApiTest {
   @Autowired private UserRepository users;
   @Autowired private CategoryRepository categories;
   @Autowired private ProductRepository products;
-  @Autowired private JwtService jwtService;
+  @Autowired private TestSupport support;
 
   private User seller; // seller đã APPROVED dùng cho hầu hết test
   private Category category;
 
   @BeforeEach
   void setUp() {
-    seller = user(Role.SELLER, SellerStatus.APPROVED);
+    seller = support.user(Role.SELLER, SellerStatus.APPROVED);
     category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
   }
 
@@ -68,7 +68,7 @@ class SellerProductApiTest {
   void approvedSellerCreatesProductAndItAppearsPublicly() throws Exception {
     mvc.perform(
             post(BASE)
-                .header(HttpHeaders.AUTHORIZATION, bearer(seller))
+                .header(HttpHeaders.AUTHORIZATION, support.bearer(seller))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body("Headphone", "59.00", "12", category.getId().toString(), null)))
         .andExpect(status().isCreated())
@@ -137,7 +137,7 @@ class SellerProductApiTest {
 
     // Customer và admin sai role: 403 ngay ở luật URL.
     for (Role role : new Role[] {Role.CUSTOMER, Role.ADMIN}) {
-      create(user(role, null), valid)
+      create(support.user(role, null), valid)
           .andExpect(status().isForbidden())
           .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -145,7 +145,7 @@ class SellerProductApiTest {
     // Seller chưa được duyệt hoặc đã bị từ chối/khoá: 403 do service kiểm tra trạng thái trong DB.
     for (SellerStatus notApproved :
         new SellerStatus[] {SellerStatus.PENDING, SellerStatus.REJECTED, SellerStatus.SUSPENDED}) {
-      create(user(Role.SELLER, notApproved), valid)
+      create(support.user(Role.SELLER, notApproved), valid)
           .andExpect(status().isForbidden())
           .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -153,7 +153,7 @@ class SellerProductApiTest {
 
   @Test
   void sellerSuspendedAfterGettingATokenIsStillBlocked() throws Exception {
-    String token = bearer(seller); // token cấp lúc seller còn APPROVED
+    String token = support.bearer(seller); // token cấp lúc seller còn APPROVED
 
     // Admin khoá seller sau đó. Token vẫn hợp lệ (chưa hết hạn), nhưng service tra DB nên phải chặn.
     seller.setSellerStatus(SellerStatus.SUSPENDED);
@@ -171,17 +171,17 @@ class SellerProductApiTest {
 
   @Test
   void sellerCannotTouchAnotherSellersProduct() throws Exception {
-    User other = user(Role.SELLER, SellerStatus.APPROVED);
+    User other = support.user(Role.SELLER, SellerStatus.APPROVED);
     Product theirs = product(other, "Theirs", 5);
     String id = theirs.getId().toString();
 
     // Seller A thử sửa, xoá và đổi tồn kho product của seller B: cả ba đều bị 403.
-    send(patch(BASE + "/" + id), seller, "{\"name\":\"Hacked\"}")
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"name\":\"Hacked\"}")
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
-    send(patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":999}")
+    support.send(mvc, patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":999}")
         .andExpect(status().isForbidden());
-    mvc.perform(delete(BASE + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(delete(BASE + "/" + id).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isForbidden());
 
     // Product của seller B phải còn nguyên: tên, tồn kho và trạng thái đang bán không đổi.
@@ -195,12 +195,12 @@ class SellerProductApiTest {
   void unknownProductIs404() throws Exception {
     String missing = UUID.randomUUID().toString();
 
-    send(patch(BASE + "/" + missing), seller, "{\"name\":\"X\"}")
+    support.send(mvc, patch(BASE + "/" + missing), seller, "{\"name\":\"X\"}")
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
-    send(patch(BASE + "/" + missing + "/stock"), seller, "{\"stock\":1}")
+    support.send(mvc, patch(BASE + "/" + missing + "/stock"), seller, "{\"stock\":1}")
         .andExpect(status().isNotFound());
-    mvc.perform(delete(BASE + "/" + missing).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(delete(BASE + "/" + missing).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isNotFound());
   }
 
@@ -214,7 +214,7 @@ class SellerProductApiTest {
     String id = mine.getId().toString();
 
     // Chỉ gửi tên: giá, tồn kho và danh mục phải giữ nguyên.
-    send(patch(BASE + "/" + id), seller, "{\"name\":\"Renamed\"}")
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"name\":\"Renamed\"}")
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.name").value("Renamed"))
         .andExpect(jsonPath("$.data.price").value("40.00"))
@@ -222,7 +222,7 @@ class SellerProductApiTest {
 
     // Gửi giá mới và đổi sang danh mục khác.
     Category other = categories.save(Category.create("Other-" + UUID.randomUUID()));
-    send(patch(BASE + "/" + id), seller, "{\"price\":\"69.00\",\"categoryId\":\"" + other.getId() + "\"}")
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"price\":\"69.00\",\"categoryId\":\"" + other.getId() + "\"}")
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.price").value("69.00"))
         .andExpect(jsonPath("$.data.category.id").value(other.getId().toString()))
@@ -240,7 +240,7 @@ class SellerProductApiTest {
       "{\"categoryId\":\"" + UUID.randomUUID() + "\"}" // danh mục không tồn tại
     };
     for (String invalid : invalidBodies) {
-      send(patch(BASE + "/" + id), seller, invalid)
+      support.send(mvc, patch(BASE + "/" + id), seller, invalid)
           .andExpect(status().isBadRequest())
           .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
@@ -255,7 +255,7 @@ class SellerProductApiTest {
     String id = mine.getId().toString();
 
     // DELETE trả 204 và không có body.
-    mvc.perform(delete(BASE + "/" + id).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(delete(BASE + "/" + id).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isNoContent())
         .andExpect(content().string(""));
 
@@ -264,7 +264,7 @@ class SellerProductApiTest {
     mvc.perform(get("/api/v1/products/" + id)).andExpect(status().isNotFound());
 
     // Seller vẫn sửa được product đã ẩn: đặt active=true để bán lại thì khách xem được trở lại.
-    send(patch(BASE + "/" + id), seller, "{\"active\":true}").andExpect(status().isOk());
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"active\":true}").andExpect(status().isOk());
     mvc.perform(get("/api/v1/products/" + id)).andExpect(status().isOk());
   }
 
@@ -275,17 +275,17 @@ class SellerProductApiTest {
     Product mine = product(seller, "Stock", 3);
     String id = mine.getId().toString();
 
-    send(patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":25}")
+    support.send(mvc, patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":25}")
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.stock").value(25));
     assertThat(products.findById(mine.getId()).orElseThrow().getStock()).isEqualTo(25);
 
     // Tồn kho 0 hợp lệ (hết hàng); âm hoặc thiếu thì 400 và giữ nguyên số cũ.
-    send(patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":0}").andExpect(status().isOk());
-    send(patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":-1}")
+    support.send(mvc, patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":0}").andExpect(status().isOk());
+    support.send(mvc, patch(BASE + "/" + id + "/stock"), seller, "{\"stock\":-1}")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
-    send(patch(BASE + "/" + id + "/stock"), seller, "{}").andExpect(status().isBadRequest());
+    support.send(mvc, patch(BASE + "/" + id + "/stock"), seller, "{}").andExpect(status().isBadRequest());
     assertThat(products.findById(mine.getId()).orElseThrow().getStock()).isEqualTo(0);
   }
 
@@ -293,7 +293,7 @@ class SellerProductApiTest {
 
   @Test
   void sellerListsOnlyOwnProductsIncludingHiddenOnes() throws Exception {
-    User other = user(Role.SELLER, SellerStatus.APPROVED);
+    User other = support.user(Role.SELLER, SellerStatus.APPROVED);
     product(seller, "Visible", 1);
     hide(product(seller, "Hidden", 1));
     product(other, "NotMine", 1); // của seller khác, không được xuất hiện
@@ -345,11 +345,11 @@ class SellerProductApiTest {
     // Sai role: 403. Seller chưa duyệt: 403.
     for (User caller :
         new User[] {
-          user(Role.CUSTOMER, null),
-          user(Role.ADMIN, null),
-          user(Role.SELLER, SellerStatus.PENDING)
+          support.user(Role.CUSTOMER, null),
+          support.user(Role.ADMIN, null),
+          support.user(Role.SELLER, SellerStatus.PENDING)
         }) {
-      mvc.perform(get(BASE).header(HttpHeaders.AUTHORIZATION, bearer(caller)))
+      mvc.perform(get(BASE).header(HttpHeaders.AUTHORIZATION, support.bearer(caller)))
           .andExpect(status().isForbidden())
           .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
     }
@@ -358,42 +358,28 @@ class SellerProductApiTest {
   @Test
   void sellerCanViewOwnHiddenProductButNotAnotherSellers() throws Exception {
     Product hidden = hide(product(seller, "Mine hidden", 4));
-    Product theirs = product(user(Role.SELLER, SellerStatus.APPROVED), "Theirs", 1);
+    Product theirs = product(support.user(Role.SELLER, SellerStatus.APPROVED), "Theirs", 1);
 
     // Product của chính mình, kể cả đã ẩn: thấy đầy đủ, active=false.
-    mvc.perform(get(BASE + "/" + hidden.getId()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(get(BASE + "/" + hidden.getId()).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.name").value("Mine hidden"))
         .andExpect(jsonPath("$.data.stock").value(4))
         .andExpect(jsonPath("$.data.active").value(false));
 
     // Product của seller khác: 403. Không tồn tại: 404.
-    mvc.perform(get(BASE + "/" + theirs.getId()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(get(BASE + "/" + theirs.getId()).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isForbidden());
-    mvc.perform(get(BASE + "/" + UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+    mvc.perform(get(BASE + "/" + UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
   }
 
   // ---------- hàm hỗ trợ ----------
 
-  /** Tạo và lưu một người dùng với role (và trạng thái seller nếu có). */
-  private User user(Role role, SellerStatus sellerStatus) {
-    User user = User.register("u-" + UUID.randomUUID() + "@test.com", "hash", "Test", role);
-    if (role == Role.SELLER) {
-      user.setSellerStatus(sellerStatus); // User.register mặc định PENDING cho seller, ở đây ghi đè
-    }
-    return users.save(user);
-  }
-
-  /** Header Authorization với access token thật của người dùng. */
-  private String bearer(User user) {
-    return "Bearer " + jwtService.generateAccessToken(user);
-  }
-
   /** GET danh sách product của chính {@code seller} với chuỗi query cho trước. */
   private ResultActions list(String query) throws Exception {
-    return mvc.perform(get(BASE + "?" + query).header(HttpHeaders.AUTHORIZATION, bearer(seller)));
+    return mvc.perform(get(BASE + "?" + query).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)));
   }
 
   /** Ẩn một product (xoá mềm) rồi lưu lại. */
@@ -415,20 +401,7 @@ class SellerProductApiTest {
   }
 
   private ResultActions create(User who, String json) throws Exception {
-    return send(post(BASE), who, json);
-  }
-
-  /** Gửi một request có body JSON kèm token của người dùng. */
-  private ResultActions send(
-      org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
-      User who,
-      String json)
-      throws Exception {
-    return mvc.perform(
-        request
-            .header(HttpHeaders.AUTHORIZATION, bearer(who))
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(json));
+    return support.send(mvc, post(BASE), who, json);
   }
 
   private static String idOf(ResultActions result) throws Exception {

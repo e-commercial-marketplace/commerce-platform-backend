@@ -16,7 +16,6 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -95,10 +94,16 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
   }
 
+  // Thu hồi mọi refresh token còn hiệu lực của một user (admin vô hiệu hoá tài khoản).
+  @Override
+  @Transactional
+  public void revokeAll(UUID userId) {
+    refreshTokenRepository.revokeAllActive(userId, timeProvider.now());
+  }
+
   // Lỗi 401 dùng chung cho mọi trường hợp refresh token không hợp lệ (cùng một thông báo).
   private BusinessException invalidToken() {
-    return new BusinessException(
-        "AUTHENTICATION_REQUIRED", "Invalid or expired refresh token", HttpStatus.UNAUTHORIZED);
+    return BusinessException.unauthorized("Invalid or expired refresh token");
   }
 
   // Băm SHA-256 một chuỗi và trả về dạng chữ hex dài 64 ký tự (khớp cột token_hash trong DB).

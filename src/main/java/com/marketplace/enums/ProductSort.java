@@ -2,9 +2,8 @@ package com.marketplace.enums;
 
 import com.marketplace.common.exception.BusinessException;
 import java.util.Arrays;
-import org.springframework.http.HttpStatus;
 
-/** Các kiểu sắp xếp danh sách product; giá trị query param là {@link #param()}. */
+/** Các kiểu sắp xếp danh sách product; giá trị query param là chuỗi truyền vào constructor. */
 public enum ProductSort {
   /** Khớp tên trước khớp mô tả; chỉ có nghĩa khi có từ khoá {@code q}. */
   RELEVANCE("relevance"),
@@ -16,10 +15,6 @@ public enum ProductSort {
 
   ProductSort(String param) {
     this.param = param;
-  }
-
-  public String param() {
-    return param;
   }
 
   /**
@@ -39,10 +34,8 @@ public enum ProductSort {
             .findFirst()
             .orElseThrow(
                 () ->
-                    new BusinessException(
-                        "VALIDATION_ERROR",
-                        "sort: must be one of relevance, price_asc, price_desc, rating_desc",
-                        HttpStatus.BAD_REQUEST));
+                    BusinessException.validation(
+                        "sort: must be one of relevance, price_asc, price_desc, rating_desc"));
     return sort == RELEVANCE && !hasQuery ? RATING_DESC : sort;
   }
 }

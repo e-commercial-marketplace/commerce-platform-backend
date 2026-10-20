@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,8 +72,7 @@ public class CategoryServiceImpl implements CategoryService {
     Category category = findCategory(id);
     // Category còn product (kể cả product đã ẩn) thì không được xoá, vì product còn tham chiếu tới nó.
     if (productRepository.existsByCategoryId(id)) {
-      throw new BusinessException(
-          "VALIDATION_ERROR", "Category still has products", HttpStatus.BAD_REQUEST);
+      throw BusinessException.validation("Category still has products");
     }
     categoryRepository.delete(category);
   }
@@ -86,7 +84,6 @@ public class CategoryServiceImpl implements CategoryService {
 
   /** Lỗi 400 khi tên category bị trùng. */
   private static BusinessException duplicateName() {
-    return new BusinessException(
-        "VALIDATION_ERROR", "Category name already exists", HttpStatus.BAD_REQUEST);
+    return BusinessException.validation("Category name already exists");
   }
 }

@@ -26,7 +26,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,8 +42,7 @@ public class ProductServiceImpl implements ProductService {
     if (request.minPrice() != null
         && request.maxPrice() != null
         && request.minPrice().compareTo(request.maxPrice()) > 0) {
-      throw new BusinessException(
-          "VALIDATION_ERROR", "minPrice: must not be greater than maxPrice", HttpStatus.BAD_REQUEST);
+      throw BusinessException.validation("minPrice: must not be greater than maxPrice");
     }
     String text = request.q() == null || request.q().isBlank() ? null : request.q().trim();
     ProductSort sort = ProductSort.resolve(request.sort(), text != null);
