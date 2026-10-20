@@ -107,6 +107,8 @@ public class SecurityConfig {
                     .permitAll() // catalog và review đọc là public (chỉ method GET)
                     .requestMatchers(HttpMethod.POST, "/api/v1/ai/ask")
                     .permitAll() // AI hỏi đáp public, không yêu cầu đăng nhập
+                    .requestMatchers("/api/v1/seller/**")
+                    .hasRole("SELLER") // khu vực seller: sai role (customer, admin) -> 403. Trạng thái APPROVED kiểm tra trong service
                     .requestMatchers("/api/v1/admin/**") // ** khớp mọi đường dẫn con
                     .hasRole("ADMIN") // phải đăng nhập VÀ có quyền ROLE_ADMIN, sai quyền -> 403
                     .anyRequest() // mọi request còn lại...

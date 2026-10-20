@@ -23,4 +23,7 @@ public interface ProductRepository
 
   @EntityGraph(attributePaths = {"category", "seller"})
   Optional<Product> findByIdAndActiveTrue(UUID id);
+
+  /** Category còn product nào không (kể cả product đã ẩn), dùng để chặn xoá category. */
+  boolean existsByCategoryId(UUID categoryId);
 }
