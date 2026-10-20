@@ -1,10 +1,9 @@
 package com.marketplace.common.util;
 
-import org.springframework.stereotype.Component;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.stereotype.Component;
 
 /**
  * Bean tiện ích dùng chung cho thời gian và idempotency key.

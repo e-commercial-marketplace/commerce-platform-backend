@@ -1,6 +1,8 @@
 package com.marketplace.common.response;
 
 import java.util.List;
+import java.util.function.Function;
+import org.springframework.data.domain.Page;
 
 /**
  * Khung response cho API phân trang như product list, order list hoặc shipment list.
@@ -19,4 +21,20 @@ import java.util.List;
  * @param totalElements tổng số item trên mọi trang
  * @param totalPages tổng số trang
  */
-public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {}
+public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {
+
+  /**
+   * Đổi một {@link Page} của Spring Data (chứa entity) thành {@code PageResponse} (chứa response).
+   *
+   * @param page trang kết quả từ repository
+   * @param mapper hàm đổi từng entity thành response, ví dụ {@code productMapper::toSummary}
+   */
+  public static <S, T> PageResponse<T> from(Page<S> page, Function<S, T> mapper) {
+    return new PageResponse<>(
+        page.getContent().stream().map(mapper).toList(), // đổi từng phần tử của trang hiện tại
+        page.getNumber(), // số trang hiện tại (bắt đầu từ 0)
+        page.getSize(), // số item yêu cầu mỗi trang
+        page.getTotalElements(), // tổng số item trên mọi trang
+        page.getTotalPages()); // tổng số trang
+  }
+}

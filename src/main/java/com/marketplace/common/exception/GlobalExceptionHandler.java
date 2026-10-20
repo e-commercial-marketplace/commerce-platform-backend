@@ -8,10 +8,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 // Bắt exception tập trung cho mọi controller -> luôn trả về khung ApiResponse thống nhất.
@@ -67,6 +70,32 @@ public class GlobalExceptionHandler {
       leaf = node.getName();
     }
     return leaf != null ? leaf : path.toString();
+  }
+
+  // Query param/path variable sai kiểu (ví dụ categoryId=abc, page=x): lỗi của client -> 400.
+  // Chỉ trả tên tham số, không trả giá trị hay tên kiểu nội bộ.
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+      MethodArgumentTypeMismatchException ex) {
+    String message = ex.getName() + ": invalid value";
+    return ResponseEntity.badRequest()
+        .body(ApiResponse.fail("VALIDATION_ERROR", message, Map.of(ex.getName(), "Invalid value")));
+  }
+
+  // Body JSON hỏng hoặc giá trị enum không hợp lệ (ví dụ "role": "FOO"): lỗi của client -> 400,
+  // không để rơi xuống fallback 500. Không trả message gốc vì nó lộ tên class/kiểu nội bộ.
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex) {
+    return ResponseEntity.badRequest()
+        .body(ApiResponse.fail("VALIDATION_ERROR", "Malformed request body"));
+  }
+
+  // @PreAuthorize từ chối ném AccessDeniedException bên trong controller, nên advice này bắt trước
+  // Spring Security; thiếu handler thì fallback bên dưới biến nó thành 500.
+  @ExceptionHandler(AccessDeniedException.class)
+  public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(ApiResponse.fail("FORBIDDEN", "Access denied"));
   }
 
   // Fallback cuối cùng: lỗi chưa lường trước -> 500, che message gốc để không lộ chi tiết nội bộ.

@@ -2,6 +2,8 @@ package com.marketplace;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Điểm khởi động duy nhất của Spring Boot modular monolith.
@@ -13,8 +15,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>Theo PLAN, auth, catalog, cart, order, payment, shipment, chat và ai là các feature cùng chạy
  * trong một JVM/deployment unit. Các feature gọi nhau bằng Spring bean method call, không qua HTTP
  * nội bộ hay service discovery.
+ *
+ * <p>Tắt {@link UserDetailsServiceAutoConfiguration}: xác thực đi qua JWT của feature auth, nên
+ * không cần user in-memory mặc định với mật khẩu sinh ngẫu nhiên in ra log.
  */
-@SpringBootApplication
+@SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
+@ConfigurationPropertiesScan
 public class MarketplaceApplication {
 
   /**

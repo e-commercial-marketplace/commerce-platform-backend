@@ -72,14 +72,15 @@ class ApiPrefixTest {
   }
 
   /**
-   * Route public dưới prefix nhưng chưa có controller (bổ sung ở Phase 1 trở đi) phải trả 404 theo
-   * contract: security matcher đã cho qua nên request tới được DispatcherServlet, và
-   * {@code GlobalExceptionHandler} phải map thành {@code RESOURCE_NOT_FOUND} thay vì 500.
+   * Route public dưới prefix nhưng chưa có controller phải trả 404 theo contract: security matcher
+   * đã cho qua nên request tới được DispatcherServlet, và {@code GlobalExceptionHandler} phải map
+   * thành {@code RESOURCE_NOT_FOUND} thay vì 500. Dùng review của product (Phase 8) làm ví dụ; khi
+   * Phase 8 có controller thì đổi sang route public khác chưa được triển khai.
    */
   @Test
   void unmappedPublicRouteUnderPrefixReturns404() throws Exception {
     mockMvc
-        .perform(get("/api/v1/products"))
+        .perform(get("/api/v1/products/some-id/reviews"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
   }

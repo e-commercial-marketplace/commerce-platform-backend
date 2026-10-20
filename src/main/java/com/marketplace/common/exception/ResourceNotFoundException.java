@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
  *
  * <p>Dùng ở service sau thao tác lookup, ví dụ
  * {@code throw new ResourceNotFoundException("Product", productId)}. Cách dùng này giữ code lỗi
- * {@code NOT_FOUND} nhất quán và giúp client phân biệt 404 với lỗi validation hoặc 500.
+ * {@code RESOURCE_NOT_FOUND} (đúng contract §2) nhất quán và giúp client phân biệt 404 với lỗi
+ * validation hoặc 500.
  */
 public class ResourceNotFoundException extends BusinessException {
 
@@ -16,6 +17,6 @@ public class ResourceNotFoundException extends BusinessException {
    * @param id định danh dùng trong lookup; không dùng dữ liệu bí mật làm message
    */
   public ResourceNotFoundException(String resource, Object id) {
-    super("NOT_FOUND", resource + " not found: " + id, HttpStatus.NOT_FOUND);
+    super("RESOURCE_NOT_FOUND",resource + " not found: " + id, HttpStatus.NOT_FOUND);
   }
 }
