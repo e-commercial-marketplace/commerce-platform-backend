@@ -1,6 +1,7 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
+import com.marketplace.common.util.Emails;
 import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
@@ -12,7 +13,6 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.AuthService;
 import com.marketplace.service.JwtService;
 import com.marketplace.service.RefreshTokenService;
-import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public AuthResponse register(RegisterRequest request) {
     // Bước 1: chuẩn hoá email (bỏ khoảng trắng, chữ thường) để "A@x.com" và "a@x.com" là một.
-    String email = normalizeEmail(request.email());
+    String email = Emails.normalize(request.email());
     // Bước 2: không gửi role thì mặc định là CUSTOMER.
     Role role = request.role() == null ? Role.CUSTOMER : request.role();
     // Bước 3: tuyệt đối không cho tự đăng ký ADMIN từ bên ngoài.
@@ -67,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public AuthResponse login(LoginRequest request) {
     // Bước 1: tìm người dùng theo email đã chuẩn hoá; không thấy thì user = null.
-    User user = userRepository.findByEmailIgnoreCase(normalizeEmail(request.email())).orElse(null);
+    User user = userRepository.findByEmailIgnoreCase(Emails.normalize(request.email())).orElse(null);
     // Bước 2: kiểm tra ba điều kiện cùng lúc. Chỉ cần một điều kiện đúng là báo lỗi:
     //   - không có người dùng với email đó
     //   - mật khẩu nhập vào không khớp hash đã lưu (matches tự băm mật khẩu nhập rồi so)
@@ -105,13 +105,8 @@ public class AuthServiceImpl implements AuthService {
         UserSummaryResponse.from(user)); // thông tin người dùng (không có mật khẩu)
   }
 
-  // Chuẩn hoá email: bỏ khoảng trắng hai đầu, đổi thành chữ thường.
-  private static String normalizeEmail(String email) {
-    return email.trim().toLowerCase(Locale.ROOT);
-  }
-
   // Lỗi 400 khi email đã được dùng.
   private static BusinessException emailTaken() {
-    return BusinessException.validation("Email is already registered");
+    return BusinessException.validation(Emails.TAKEN_MESSAGE);
   }
 }

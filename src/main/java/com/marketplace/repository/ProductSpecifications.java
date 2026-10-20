@@ -1,16 +1,14 @@
 package com.marketplace.repository;
 
+import com.marketplace.common.util.LikePattern;
 import com.marketplace.entity.Product;
 import jakarta.persistence.criteria.Expression;
 import java.math.BigDecimal;
-import java.util.Locale;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 
 /** Các điều kiện lọc product dùng chung cho duyệt công khai (và sau này cho seller). */
 public final class ProductSpecifications {
-
-  private static final char LIKE_ESCAPE = '\\';
 
   private ProductSpecifications() {}
 
@@ -47,11 +45,11 @@ public final class ProductSpecifications {
 
   /** Tìm không phân biệt hoa thường trong tên hoặc mô tả. */
   public static Specification<Product> textMatches(String text) {
-    String pattern = likePattern(text);
+    String pattern = LikePattern.contains(text);
     return (root, query, cb) ->
         cb.or(
-            cb.like(cb.lower(root.get("name")), pattern, LIKE_ESCAPE),
-            cb.like(cb.lower(root.<String>get("description")), pattern, LIKE_ESCAPE));
+            cb.like(cb.lower(root.get("name")), pattern, LikePattern.ESCAPE),
+            cb.like(cb.lower(root.<String>get("description")), pattern, LikePattern.ESCAPE));
   }
 
   /**
@@ -62,12 +60,12 @@ public final class ProductSpecifications {
    * sort (Spring Data sẽ ghi đè nếu có sort). Câu count không cần thứ tự nên bị bỏ qua.
    */
   public static Specification<Product> orderedByRelevance(String text) {
-    String pattern = likePattern(text);
+    String pattern = LikePattern.contains(text);
     return (root, query, cb) -> {
       if (query != null && !isCountQuery(query.getResultType())) {
         Expression<Integer> nameMatchRank =
             cb.<Integer>selectCase()
-                .when(cb.like(cb.lower(root.get("name")), pattern, LIKE_ESCAPE), 0)
+                .when(cb.like(cb.lower(root.get("name")), pattern, LikePattern.ESCAPE), 0)
                 .otherwise(1);
         query.orderBy(
             cb.asc(nameMatchRank),
@@ -80,15 +78,5 @@ public final class ProductSpecifications {
 
   private static boolean isCountQuery(Class<?> resultType) {
     return Long.class.equals(resultType) || long.class.equals(resultType);
-  }
-
-  /** Chuyển chuỗi người dùng thành pattern LIKE an toàn: ký tự {@code % _ \} được coi là chữ thường. */
-  private static String likePattern(String text) {
-    String escaped =
-        text.toLowerCase(Locale.ROOT)
-            .replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_");
-    return "%" + escaped + "%";
   }
 }
