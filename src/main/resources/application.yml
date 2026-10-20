@@ -45,6 +45,9 @@ app:
     secret: ${APP_JWT_SECRET}
     access-expiration-ms: ${APP_JWT_ACCESS_EXPIRATION_MS:900000}
     refresh-expiration-ms: ${APP_JWT_REFRESH_EXPIRATION_MS:604800000}
+  cors:
+    # Tuỳ chọn: origin pattern được gọi API từ trình duyệt, phân cách bằng dấu phẩy (rỗng = không cho).
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:}
   admin:
     # Tuỳ chọn: tạo admin đầu tiên khi DB chưa có admin nào (bỏ trống thì không tạo).
     email: ${APP_ADMIN_EMAIL:}

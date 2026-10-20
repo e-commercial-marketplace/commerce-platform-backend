@@ -5,9 +5,12 @@ import com.marketplace.security.RestAccessDeniedHandler;
 import com.marketplace.security.RestAuthenticationEntryPoint;
 import com.marketplace.service.JwtService;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,6 +19,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Cấu hình biên bảo mật của ứng dụng.
@@ -37,13 +43,16 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  * tắt vì API dự kiến dùng bearer token thay vì cookie-session; nếu sau này chuyển sang xác thực
  * bằng cookie thì phải đánh giá và bật lại CSRF.
  */
-@Configuration
-@EnableMethodSecurity
-@RequiredArgsConstructor
+@Configuration // đánh dấu đây là class cấu hình: Spring đọc các @Bean bên trong khi khởi động
+@EnableMethodSecurity // bật @PreAuthorize: cho phép kiểm tra quyền ngay trên method của controller
+@RequiredArgsConstructor // Lombok tự tạo constructor nhận 3 field final bên dưới
 public class SecurityConfig {
 
+  // Dùng để kiểm tra token, được đưa vào JwtAuthenticationFilter.
   private final JwtService jwtService;
+  // Quyết định nội dung lỗi 401 (chưa đăng nhập).
   private final RestAuthenticationEntryPoint authenticationEntryPoint;
+  // Quyết định nội dung lỗi 403 (đã đăng nhập nhưng sai quyền).
   private final RestAccessDeniedHandler accessDeniedHandler;
 
   /**
@@ -53,17 +62,26 @@ public class SecurityConfig {
    * @return filter chain được Spring Security dùng cho mọi request
    * @throws Exception nếu Spring Security không xây dựng được chain
    */
-  @Bean
+  @Bean // kết quả của method này là chuỗi filter bảo vệ mọi request, Spring giữ nó làm bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-    http.csrf(AbstractHttpConfigurer::disable) // tắt CSRF cho REST API
+    // "http" là công cụ dựng chuỗi; mỗi dòng bên dưới thêm một quy tắc vào chuỗi.
+    http.csrf(AbstractHttpConfigurer::disable) // Bước 1: tắt CSRF, vì API dùng bearer token chứ không dùng cookie
+        // Bước 2: bật CORS, dùng bean corsConfigurationSource ở dưới (mặc định không cho origin nào)
+        .cors(Customizer.withDefaults())
         .sessionManagement(
-            sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // không tạo session
+            // Bước 3: STATELESS = server không nhớ ai qua session, mỗi request phải tự mang token
+            sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .exceptionHandling(
+            // Bước 4: khi bị chặn thì trả lỗi gì
             ex ->
-                ex.authenticationEntryPoint(authenticationEntryPoint) // 401 dạng ApiResponse
-                    .accessDeniedHandler(accessDeniedHandler)) // 403 dạng ApiResponse
+                ex.authenticationEntryPoint(authenticationEntryPoint) // chưa đăng nhập -> 401 dạng ApiResponse
+                    .accessDeniedHandler(accessDeniedHandler)) // đăng nhập rồi nhưng sai quyền -> 403 dạng ApiResponse
+        // Bước 5: gắn filter JWT của mình vào chuỗi, đứng ngay trước filter đăng nhập mặc định của Spring.
+        // Dùng "new" thay vì @Component để filter không bị đăng ký hai lần.
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
+        // Bước 6: luật URL. Spring đọc từ TRÊN XUỐNG DƯỚI và dùng luật ĐẦU TIÊN khớp,
+        // nên luật chung chung "anyRequest()" bắt buộc phải nằm cuối cùng.
         .authorizeHttpRequests(
             auth ->
                 auth.requestMatchers(
@@ -72,28 +90,58 @@ public class SecurityConfig {
                         "/v3/api-docs/**", // Swagger OpenAPI
                         "/swagger-ui/**",
                         "/swagger-ui.html")
-                    .permitAll()
+                    .permitAll() // permitAll = ai cũng vào được, không cần token
                     // Endpoint public theo API_CONTRACT §2.1 (controller bổ sung ở Phase 1/2/10).
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login")
-                    .permitAll() // đăng ký/đăng nhập không cần token
+                    .permitAll() // đăng ký/đăng nhập không cần token (chưa có token thì không thể có)
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh")
-                    .permitAll() // refresh dùng refresh token, không cần access token
+                    .permitAll() // refresh dùng refresh token, không cần access token (access đã hết hạn)
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")
-                    .authenticated() // logout yêu cầu access token của chính chủ
+                    .authenticated() // authenticated = phải đăng nhập (có token hợp lệ); logout cần access token của chính chủ
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/products",
-                        "/api/v1/products/*",
+                        "/api/v1/products/*", // dấu * khớp đúng một đoạn, ví dụ /products/123
                         "/api/v1/products/*/reviews",
                         "/api/v1/categories")
-                    .permitAll() // catalog và review đọc là public
+                    .permitAll() // catalog và review đọc là public (chỉ method GET)
                     .requestMatchers(HttpMethod.POST, "/api/v1/ai/ask")
                     .permitAll() // AI hỏi đáp public, không yêu cầu đăng nhập
-                    .requestMatchers("/api/v1/admin/**")
-                    .hasRole("ADMIN") // khu vực quản trị
-                    .anyRequest()
-                    .authenticated()); // còn lại: cần auth
-    return http.build();
+                    .requestMatchers("/api/v1/admin/**") // ** khớp mọi đường dẫn con
+                    .hasRole("ADMIN") // phải đăng nhập VÀ có quyền ROLE_ADMIN, sai quyền -> 403
+                    .anyRequest() // mọi request còn lại...
+                    .authenticated()); // ...đều phải đăng nhập, chưa đăng nhập -> 401
+    return http.build(); // dựng xong chuỗi và trả về cho Spring dùng
+  }
+
+  /**
+   * Cấu hình CORS đọc từ {@code app.cors.allowed-origin-patterns} (biến {@code
+   * APP_CORS_ALLOWED_ORIGIN_PATTERNS}, danh sách pattern phân cách bằng dấu phẩy).
+   *
+   * <p>Mặc định rỗng nghĩa là không origin nào được phép, giữ nguyên hành vi trước đây. Chỉ đặt giá
+   * trị này khi cần gọi API từ trình duyệt, ví dụ {@code *} để thử bằng trang HTML mở trực tiếp từ
+   * file lúc phát triển; production nên liệt kê đích danh origin của web app. Không bật {@code
+   * allowCredentials} vì API dùng bearer token, không dùng cookie.
+   */
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource(
+      @Value("${app.cors.allowed-origin-patterns:}") List<String> allowedOriginPatterns) {
+    // "source" là bảng quy tắc CORS theo từng đường dẫn; ban đầu để trống nghĩa là chặn mọi origin lạ.
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    // Chỉ khi .env có đặt ít nhất một origin (không rỗng) thì mới thêm quy tắc cho phép.
+    if (allowedOriginPatterns.stream().anyMatch(p -> !p.isBlank())) {
+      CorsConfiguration config = new CorsConfiguration();
+      // Những origin được phép gọi API (cắt khoảng trắng thừa), ví dụ "*" hoặc "http://localhost:5173".
+      config.setAllowedOriginPatterns(allowedOriginPatterns.stream().map(String::trim).toList());
+      // Những method HTTP được phép gọi từ trình duyệt.
+      config.setAllowedMethods(List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"));
+      // Những header client được gửi lên: Authorization chứa token, Content-Type cho body JSON.
+      config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+      // Trình duyệt được nhớ kết quả kiểm tra CORS (preflight) trong 3600 giây, đỡ phải hỏi lại.
+      config.setMaxAge(3600L);
+      source.registerCorsConfiguration("/**", config); // áp dụng cho mọi đường dẫn
+    }
+    return source;
   }
 
   /**
@@ -106,8 +154,9 @@ public class SecurityConfig {
    *
    * @return encoder BCrypt dùng chung trong Spring context
    */
-  @Bean
+  @Bean // Spring giữ một encoder dùng chung; nơi nào cần chỉ việc khai báo PasswordEncoder là được đưa vào
   public PasswordEncoder passwordEncoder() {
+    // BCrypt: băm một chiều và tự thêm "muối" ngẫu nhiên, nên cùng một mật khẩu cho ra hash khác nhau mỗi lần.
     return new BCryptPasswordEncoder();
   }
 }
