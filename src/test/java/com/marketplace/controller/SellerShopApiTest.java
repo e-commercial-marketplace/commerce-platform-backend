@@ -11,7 +11,7 @@ import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
-import com.marketplace.repository.UserRepository;
+import com.marketplace.support.TestSupport;
 import java.math.BigDecimal;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -32,13 +32,13 @@ import org.springframework.test.web.servlet.MockMvc;
 class SellerShopApiTest {
 
   @Autowired private MockMvc mvc;
-  @Autowired private UserRepository users;
+  @Autowired private TestSupport support;
   @Autowired private CategoryRepository categories;
   @Autowired private ProductRepository products;
 
   @Test
   void anyoneCanViewAnApprovedSellersShop() throws Exception {
-    User seller = user(Role.SELLER, SellerStatus.APPROVED, "Anh Hoang Store");
+    User seller = support.user(Role.SELLER, SellerStatus.APPROVED, "Anh Hoang Store");
     Category category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
 
     // Hai product đang bán và một product đã ẩn: productCount chỉ đếm hai cái đang bán.
@@ -46,7 +46,7 @@ class SellerShopApiTest {
     product(seller, category, "B", true);
     product(seller, category, "Hidden", false);
     // Product của seller khác không được tính vào shop này.
-    product(user(Role.SELLER, SellerStatus.APPROVED, "Other"), category, "Other's", true);
+    product(support.user(Role.SELLER, SellerStatus.APPROVED, "Other"), category, "Other's", true);
 
     // Không gửi token: trang shop là công khai.
     mvc.perform(get("/api/v1/sellers/" + seller.getId()))
@@ -63,7 +63,7 @@ class SellerShopApiTest {
 
   @Test
   void shopOfASellerWithoutProductsHasCountZero() throws Exception {
-    User seller = user(Role.SELLER, SellerStatus.APPROVED, "Empty Shop");
+    User seller = support.user(Role.SELLER, SellerStatus.APPROVED, "Empty Shop");
 
     mvc.perform(get("/api/v1/sellers/" + seller.getId()))
         .andExpect(status().isOk())
@@ -75,7 +75,7 @@ class SellerShopApiTest {
     // Seller chưa duyệt, bị từ chối hoặc bị khoá: coi như shop không tồn tại.
     for (SellerStatus status :
         new SellerStatus[] {SellerStatus.PENDING, SellerStatus.REJECTED, SellerStatus.SUSPENDED}) {
-      User seller = user(Role.SELLER, status, "Hidden Shop");
+      User seller = support.user(Role.SELLER, status, "Hidden Shop");
       mvc.perform(get("/api/v1/sellers/" + seller.getId()))
           .andExpect(status().isNotFound())
           .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
@@ -83,7 +83,7 @@ class SellerShopApiTest {
 
     // Customer và admin không phải seller: cùng một lỗi 404, người ngoài không phân biệt được.
     for (Role role : new Role[] {Role.CUSTOMER, Role.ADMIN}) {
-      User other = user(role, null, "Not A Seller");
+      User other = support.user(role, null, "Not A Seller");
       mvc.perform(get("/api/v1/sellers/" + other.getId())).andExpect(status().isNotFound());
     }
 
@@ -99,15 +99,6 @@ class SellerShopApiTest {
   }
 
   // ---------- hàm hỗ trợ ----------
-
-  /** Tạo và lưu người dùng; với seller thì ghi đè trạng thái duyệt (User.register mặc định PENDING). */
-  private User user(Role role, SellerStatus sellerStatus, String name) {
-    User user = User.register("u-" + UUID.randomUUID() + "@test.com", "hash", name, role);
-    if (role == Role.SELLER) {
-      user.setSellerStatus(sellerStatus);
-    }
-    return users.save(user);
-  }
 
   /** Tạo và lưu một product thuộc seller, đang bán hoặc đã ẩn. */
   private void product(User owner, Category category, String name, boolean active) {
