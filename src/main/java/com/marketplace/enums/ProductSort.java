@@ -3,7 +3,7 @@ package com.marketplace.enums;
 import com.marketplace.common.exception.BusinessException;
 import java.util.Arrays;
 
-/** Các kiểu sắp xếp danh sách product; giá trị query param là {@link #param()}. */
+/** Các kiểu sắp xếp danh sách product; giá trị query param là chuỗi truyền vào constructor. */
 public enum ProductSort {
   /** Khớp tên trước khớp mô tả; chỉ có nghĩa khi có từ khoá {@code q}. */
   RELEVANCE("relevance"),
@@ -15,10 +15,6 @@ public enum ProductSort {
 
   ProductSort(String param) {
     this.param = param;
-  }
-
-  public String param() {
-    return param;
   }
 
   /**
