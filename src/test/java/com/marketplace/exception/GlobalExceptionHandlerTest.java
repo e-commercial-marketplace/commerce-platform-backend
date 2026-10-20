@@ -58,6 +58,7 @@ class GlobalExceptionHandlerTest {
     ResponseEntity<ApiResponse<Void>> res =
         handler.handleBusiness(new ResourceNotFoundException("Product", "1"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(res.getBody().error().code()).isEqualTo("RESOURCE_NOT_FOUND");
   }
 
   @Test
