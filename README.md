@@ -170,9 +170,14 @@ runs automatically.
 
 ## Package layout
 
-`com.marketplace.{auth,user,catalog,cart,order,payment,shipment,voucher,review,chat,ai,common}`
-`common/{exception,response,config,util}` — `ApiResponse`, `GlobalExceptionHandler`, `SecurityConfig`
-(JWT filter in Phase 1), `WebConfig` (central `/api/v1` prefix for REST controllers).
+Layered under `com.marketplace` (all features share each layer; class names identify the feature):
+
+`config`, `controller`, `service` (+ `impl`), `repository`, `entity`, `enums`, `dto/{request,response}`,
+`mapper`, `security`, `exception`, `util`, `websocket`, `vnpay`, `ai/{tools,rag,memory}`.
+
+`config` holds `SecurityConfig` (JWT filter wiring), `WebConfig` (central `/api/v1` prefix for REST
+controllers) and `AdminBootstrap`; `dto/response` holds `ApiResponse`; `exception` holds
+`GlobalExceptionHandler`; `security` holds the JWT filter and the 401/403 handlers.
 
 ## Tests
 
