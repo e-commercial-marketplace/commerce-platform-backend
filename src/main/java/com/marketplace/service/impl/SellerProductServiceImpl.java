@@ -2,11 +2,17 @@ package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.exception.ForbiddenException;
+import static com.marketplace.repository.ProductSpecifications.activeIs;
+import static com.marketplace.repository.ProductSpecifications.soldBy;
+import static com.marketplace.repository.ProductSpecifications.textMatches;
+
 import com.marketplace.common.exception.ResourceNotFoundException;
+import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductCreateRequest;
 import com.marketplace.dto.request.ProductUpdateRequest;
 import com.marketplace.dto.request.StockUpdateRequest;
 import com.marketplace.dto.response.ProductResponse;
+import com.marketplace.dto.response.ProductSummaryResponse;
 import com.marketplace.entity.Category;
 import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
@@ -19,6 +25,9 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.SellerProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +40,38 @@ public class SellerProductServiceImpl implements SellerProductService {
   private final CategoryRepository categoryRepository; // tìm category theo id
   private final UserRepository userRepository; // tra trạng thái duyệt của seller trong DB
   private final ProductMapper productMapper; // đổi Product thành ProductResponse
+
+  // Danh sách product của chính seller. Chỉ đọc nên khai báo readOnly.
+  @Override
+  @Transactional(readOnly = true)
+  public PageResponse<ProductSummaryResponse> list(
+      UUID sellerId, String q, Boolean active, int page, int size) {
+    // Bước 1: seller phải được duyệt.
+    requireApprovedSeller(sellerId);
+    // Bước 2: luôn bắt đầu bằng "chỉ product của seller này". sellerId lấy từ token nên không ai xem trộm
+    // product của người khác được. Khác với danh sách công khai: KHÔNG lọc active, nên thấy cả product đã ẩn.
+    Specification<Product> spec = soldBy(sellerId);
+    // Bước 3: các bộ lọc tuỳ chọn.
+    if (q != null && !q.isBlank()) {
+      spec = spec.and(textMatches(q.trim())); // tìm trong tên và mô tả
+    }
+    if (active != null) {
+      spec = spec.and(activeIs(active)); // true: đang bán, false: đã ẩn
+    }
+    // Bước 4: sắp theo tên rồi id (id làm tie-breaker để phân trang ổn định), đúng contract.
+    PageRequest pageable =
+        PageRequest.of(page, size, Sort.by(Sort.Order.asc("name"), Sort.Order.asc("id")));
+    return PageResponse.from(productRepository.findAll(spec, pageable), productMapper::toSummary);
+  }
+
+  // Chi tiết một product của chính seller (kể cả đã ẩn). Chỉ đọc nên khai báo readOnly.
+  @Override
+  @Transactional(readOnly = true)
+  public ProductResponse get(UUID sellerId, UUID productId) {
+    requireApprovedSeller(sellerId); // seller đã duyệt chưa?
+    // Không có product thì 404, của seller khác thì 403 (cùng quy tắc với sửa, xoá).
+    return productMapper.toResponse(findOwnedProduct(sellerId, productId));
+  }
 
   // @Transactional: mọi thay đổi trong hàm là một khối; hàm chạy xong thì Hibernate tự lưu các thay đổi.
   @Override

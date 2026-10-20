@@ -6,6 +6,7 @@ import static com.marketplace.repository.ProductSpecifications.orderedByRelevanc
 import static com.marketplace.repository.ProductSpecifications.priceAtLeast;
 import static com.marketplace.repository.ProductSpecifications.priceAtMost;
 import static com.marketplace.repository.ProductSpecifications.ratingAtLeast;
+import static com.marketplace.repository.ProductSpecifications.soldBy;
 import static com.marketplace.repository.ProductSpecifications.textMatches;
 
 import com.marketplace.common.exception.BusinessException;
@@ -21,7 +22,6 @@ import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.ProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -56,6 +56,10 @@ public class ProductServiceImpl implements ProductService {
     if (request.categoryId() != null) {
       spec = spec.and(inCategory(request.categoryId()));
     }
+    // Xem shop của một seller: chỉ giữ product của seller đó (vẫn chỉ là product đang bán, vì spec isActive ở trên).
+    if (request.sellerId() != null) {
+      spec = spec.and(soldBy(request.sellerId()));
+    }
     if (request.minPrice() != null) {
       spec = spec.and(priceAtLeast(request.minPrice()));
     }
@@ -75,13 +79,8 @@ public class ProductServiceImpl implements ProductService {
       pageable = PageRequest.of(request.page(), request.size(), toSort(sort));
     }
 
-    Page<Product> page = productRepository.findAll(spec, pageable);
-    return new PageResponse<>(
-        page.getContent().stream().map(productMapper::toSummary).toList(),
-        page.getNumber(),
-        page.getSize(),
-        page.getTotalElements(),
-        page.getTotalPages());
+    // Truy vấn một trang rồi đổi từng Product thành ProductSummaryResponse.
+    return PageResponse.from(productRepository.findAll(spec, pageable), productMapper::toSummary);
   }
 
   @Override

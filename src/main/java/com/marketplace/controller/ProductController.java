@@ -34,6 +34,7 @@ public class ProductController {
   public ResponseEntity<ApiResponse<PageResponse<ProductSummaryResponse>>> search(
       @RequestParam(required = false) String q,
       @RequestParam(required = false) UUID categoryId,
+      @RequestParam(required = false) UUID sellerId, // xem shop: chỉ product đang bán của seller này
       @RequestParam(required = false) @DecimalMin("0") BigDecimal minPrice,
       @RequestParam(required = false) @DecimalMin("0") BigDecimal maxPrice,
       @RequestParam(required = false) @DecimalMin("0") @DecimalMax("5") BigDecimal minRating,
@@ -41,7 +42,8 @@ public class ProductController {
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     ProductSearchRequest request =
-        new ProductSearchRequest(q, categoryId, minPrice, maxPrice, minRating, sort, page, size);
+        new ProductSearchRequest(
+            q, categoryId, sellerId, minPrice, maxPrice, minRating, sort, page, size);
     return ResponseEntity.ok(ApiResponse.ok(productService.search(request)));
   }
 

@@ -170,7 +170,8 @@ class CatalogPublicApiTest {
       "size=101",
       "page=-1",
       "page=abc",
-      "categoryId=not-a-uuid"
+      "categoryId=not-a-uuid",
+      "sellerId=not-a-uuid"
     };
     for (String query : bad) {
       list(query)
@@ -178,6 +179,31 @@ class CatalogPublicApiTest {
           .andExpect(jsonPath("$.success").value(false))
           .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
+  }
+
+  @Test
+  void filtersBySellerAndNeverShowsTheirUnlistedProducts() throws Exception {
+    User other = User.register("other-" + UUID.randomUUID() + "@test.com", "hash", "Other", Role.SELLER);
+    other.setSellerStatus(SellerStatus.APPROVED);
+    other = userRepository.save(other);
+    // Hai product của seller mặc định (một đang bán, một đã ẩn) và một product của seller khác.
+    save("Mine", "d", "10.00", 1, "0.00", 0, true);
+    save("MineHidden", "d", "10.00", 1, "0.00", 0, false);
+    productRepository.save(
+        Product.create("Theirs", "d", null, new BigDecimal("10.00"), 1, category, other));
+
+    String c = "categoryId=" + category.getId();
+    // Xem shop của seller mặc định: chỉ thấy product đang bán của họ, và trường active là true.
+    list(c + "&sellerId=" + seller.getId())
+        .andExpect(jsonPath("$.data.totalElements").value(1))
+        .andExpect(jsonPath("$.data.content[0].name").value("Mine"))
+        .andExpect(jsonPath("$.data.content[0].active").value(true))
+        .andExpect(jsonPath("$.data.content[0].sellerId").value(seller.getId().toString()));
+    // Xem shop của seller kia.
+    list(c + "&sellerId=" + other.getId())
+        .andExpect(jsonPath("$.data.content[*].name", contains("Theirs")));
+    // Seller không có product nào: trang rỗng, không phải lỗi.
+    list("sellerId=" + UUID.randomUUID()).andExpect(jsonPath("$.data.totalElements").value(0));
   }
 
   // ---------- GET /products/{id} ----------

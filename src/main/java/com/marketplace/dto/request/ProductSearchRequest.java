@@ -7,6 +7,7 @@ import java.util.UUID;
  * Tham số tìm kiếm product công khai; mọi bộ lọc đều tuỳ chọn.
  *
  * @param q từ khoá tìm trong tên và mô tả
+ * @param sellerId chỉ lấy product đang bán của seller này (xem shop của seller)
  * @param minPrice giá tối thiểu (bao gồm)
  * @param maxPrice giá tối đa (bao gồm)
  * @param minRating rating trung bình tối thiểu, 0 đến 5
@@ -16,6 +17,7 @@ import java.util.UUID;
 public record ProductSearchRequest(
     String q,
     UUID categoryId,
+    UUID sellerId,
     BigDecimal minPrice,
     BigDecimal maxPrice,
     BigDecimal minRating,

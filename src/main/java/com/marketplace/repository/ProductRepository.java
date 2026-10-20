@@ -26,4 +26,7 @@ public interface ProductRepository
 
   /** Category còn product nào không (kể cả product đã ẩn), dùng để chặn xoá category. */
   boolean existsByCategoryId(UUID categoryId);
+
+  /** Số product đang bán của một seller, dùng cho trang shop công khai. */
+  long countBySellerIdAndActiveTrue(UUID sellerId);
 }

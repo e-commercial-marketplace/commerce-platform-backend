@@ -19,6 +19,16 @@ public final class ProductSpecifications {
     return (root, query, cb) -> cb.isTrue(root.get("active"));
   }
 
+  /** Lọc theo trạng thái hiển thị: {@code true} chỉ lấy product đang bán, {@code false} chỉ lấy product đã ẩn. */
+  public static Specification<Product> activeIs(boolean active) {
+    return (root, query, cb) -> cb.equal(root.get("active"), active);
+  }
+
+  /** Chỉ lấy product của một seller (dùng cho trang shop công khai và danh sách của chính seller). */
+  public static Specification<Product> soldBy(UUID sellerId) {
+    return (root, query, cb) -> cb.equal(root.get("seller").get("id"), sellerId);
+  }
+
   public static Specification<Product> inCategory(UUID categoryId) {
     return (root, query, cb) -> cb.equal(root.get("category").get("id"), categoryId);
   }

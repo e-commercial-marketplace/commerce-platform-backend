@@ -103,8 +103,9 @@ public class SecurityConfig {
                         "/api/v1/products",
                         "/api/v1/products/*", // dấu * khớp đúng một đoạn, ví dụ /products/123
                         "/api/v1/products/*/reviews",
-                        "/api/v1/categories")
-                    .permitAll() // catalog và review đọc là public (chỉ method GET)
+                        "/api/v1/categories",
+                        "/api/v1/sellers/*") // trang shop của seller
+                    .permitAll() // catalog, review và trang shop đọc là public (chỉ method GET)
                     .requestMatchers(HttpMethod.POST, "/api/v1/ai/ask")
                     .permitAll() // AI hỏi đáp public, không yêu cầu đăng nhập
                     .requestMatchers("/api/v1/seller/**")

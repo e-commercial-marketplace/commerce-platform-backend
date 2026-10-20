@@ -1,6 +1,8 @@
 package com.marketplace.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -75,6 +77,7 @@ class SellerProductApiTest {
         .andExpect(jsonPath("$.data.price").value("59.00"))
         .andExpect(jsonPath("$.data.stock").value(12))
         .andExpect(jsonPath("$.data.reviewCount").value(0))
+        .andExpect(jsonPath("$.data.active").value(true))
         .andExpect(jsonPath("$.data.ratingAverage").value("0"))
         // sellerId phải lấy từ token chứ không phải từ client gửi lên.
         .andExpect(jsonPath("$.data.sellerId").value(seller.getId().toString()))
@@ -286,6 +289,92 @@ class SellerProductApiTest {
     assertThat(products.findById(mine.getId()).orElseThrow().getStock()).isEqualTo(0);
   }
 
+  // ---------- danh sách và chi tiết của chính seller ----------
+
+  @Test
+  void sellerListsOnlyOwnProductsIncludingHiddenOnes() throws Exception {
+    User other = user(Role.SELLER, SellerStatus.APPROVED);
+    product(seller, "Visible", 1);
+    hide(product(seller, "Hidden", 1));
+    product(other, "NotMine", 1); // của seller khác, không được xuất hiện
+
+    // Mặc định thấy cả đang bán lẫn đã ẩn, nhưng không thấy product của seller khác.
+    list("")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.totalElements").value(2))
+        .andExpect(jsonPath("$.data.content[*].name", containsInAnyOrder("Visible", "Hidden")));
+
+    // active=false chỉ lấy product đã ẩn (và trường active phản ánh đúng).
+    list("active=false")
+        .andExpect(jsonPath("$.data.totalElements").value(1))
+        .andExpect(jsonPath("$.data.content[0].name").value("Hidden"))
+        .andExpect(jsonPath("$.data.content[0].active").value(false));
+
+    // active=true chỉ lấy product đang bán.
+    list("active=true")
+        .andExpect(jsonPath("$.data.content[*].name", contains("Visible")))
+        .andExpect(jsonPath("$.data.content[0].active").value(true));
+
+    // q tìm theo tên, không phân biệt hoa thường.
+    list("q=VIS").andExpect(jsonPath("$.data.content[*].name", contains("Visible")));
+  }
+
+  @Test
+  void sellerListIsOrderedByNameAndPaginated() throws Exception {
+    product(seller, "B", 1);
+    product(seller, "C", 1);
+    product(seller, "A", 1);
+
+    list("size=2&page=0")
+        .andExpect(jsonPath("$.data.totalElements").value(3))
+        .andExpect(jsonPath("$.data.totalPages").value(2))
+        .andExpect(jsonPath("$.data.content[*].name", contains("A", "B")));
+    list("size=2&page=1").andExpect(jsonPath("$.data.content[*].name", contains("C")));
+  }
+
+  @Test
+  void sellerListRejectsInvalidParamsAndUnapprovedCallers() throws Exception {
+    for (String invalid : new String[] {"size=0", "size=101", "page=-1", "active=maybe"}) {
+      list(invalid)
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    // Không có token: 401.
+    mvc.perform(get(BASE)).andExpect(status().isUnauthorized());
+    // Sai role: 403. Seller chưa duyệt: 403.
+    for (User caller :
+        new User[] {
+          user(Role.CUSTOMER, null),
+          user(Role.ADMIN, null),
+          user(Role.SELLER, SellerStatus.PENDING)
+        }) {
+      mvc.perform(get(BASE).header(HttpHeaders.AUTHORIZATION, bearer(caller)))
+          .andExpect(status().isForbidden())
+          .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+    }
+  }
+
+  @Test
+  void sellerCanViewOwnHiddenProductButNotAnotherSellers() throws Exception {
+    Product hidden = hide(product(seller, "Mine hidden", 4));
+    Product theirs = product(user(Role.SELLER, SellerStatus.APPROVED), "Theirs", 1);
+
+    // Product của chính mình, kể cả đã ẩn: thấy đầy đủ, active=false.
+    mvc.perform(get(BASE + "/" + hidden.getId()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("Mine hidden"))
+        .andExpect(jsonPath("$.data.stock").value(4))
+        .andExpect(jsonPath("$.data.active").value(false));
+
+    // Product của seller khác: 403. Không tồn tại: 404.
+    mvc.perform(get(BASE + "/" + theirs.getId()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+        .andExpect(status().isForbidden());
+    mvc.perform(get(BASE + "/" + UUID.randomUUID()).header(HttpHeaders.AUTHORIZATION, bearer(seller)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
+  }
+
   // ---------- hàm hỗ trợ ----------
 
   /** Tạo và lưu một người dùng với role (và trạng thái seller nếu có). */
@@ -300,6 +389,17 @@ class SellerProductApiTest {
   /** Header Authorization với access token thật của người dùng. */
   private String bearer(User user) {
     return "Bearer " + jwtService.generateAccessToken(user);
+  }
+
+  /** GET danh sách product của chính {@code seller} với chuỗi query cho trước. */
+  private ResultActions list(String query) throws Exception {
+    return mvc.perform(get(BASE + "?" + query).header(HttpHeaders.AUTHORIZATION, bearer(seller)));
+  }
+
+  /** Ẩn một product (xoá mềm) rồi lưu lại. */
+  private Product hide(Product product) {
+    product.setActive(false);
+    return products.save(product);
   }
 
   /** Tạo và lưu một product đang bán thuộc seller. */
