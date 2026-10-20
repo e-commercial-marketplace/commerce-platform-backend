@@ -19,4 +19,7 @@ public interface RefreshTokenService {
 
   /** Logout: chỉ revoke token thuộc về {@code currentUserId}. */
   void revoke(String rawToken, UUID currentUserId);
+
+  /** Thu hồi mọi refresh token còn hiệu lực của user, không cần biết token thô. */
+  void revokeAll(UUID userId);
 }

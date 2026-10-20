@@ -23,4 +23,11 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
       "update RefreshToken t set t.revokedAt = :now"
           + " where t.tokenHash = :hash and t.revokedAt is null")
   int revokeIfActive(@Param("hash") String hash, @Param("now") Instant now);
+
+  /** Thu hồi mọi refresh token còn hiệu lực của một user (khi admin vô hiệu hoá tài khoản). */
+  @Modifying
+  @Query(
+      "update RefreshToken t set t.revokedAt = :now"
+          + " where t.user.id = :userId and t.revokedAt is null")
+  int revokeAllActive(@Param("userId") UUID userId, @Param("now") Instant now);
 }
