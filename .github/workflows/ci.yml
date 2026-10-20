@@ -1,0 +1,28 @@
+name: CI
+
+# Chỉ chạy test khi có pull request vào main (không chạy ở develop).
+# Test dùng H2 (profile "test") nên không cần database hay secret.
+on:
+  pull_request:
+    branches: [main]
+
+# Một nhánh chỉ chạy một lần tại một thời điểm; push mới thì huỷ lượt cũ đang chạy.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: Build and test
+        run: mvn -B -ntp verify
