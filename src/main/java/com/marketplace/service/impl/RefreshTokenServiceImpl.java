@@ -94,6 +94,13 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
   }
 
+  // Thu hồi mọi refresh token còn hiệu lực của một user (admin vô hiệu hoá tài khoản).
+  @Override
+  @Transactional
+  public void revokeAll(UUID userId) {
+    refreshTokenRepository.revokeAllActive(userId, timeProvider.now());
+  }
+
   // Lỗi 401 dùng chung cho mọi trường hợp refresh token không hợp lệ (cùng một thông báo).
   private BusinessException invalidToken() {
     return BusinessException.unauthorized("Invalid or expired refresh token");
