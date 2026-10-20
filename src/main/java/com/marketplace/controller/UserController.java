@@ -1,7 +1,7 @@
 package com.marketplace.controller;
 
 import com.marketplace.dto.response.ApiResponse;
-import com.marketplace.dto.response.UserSummary;
+import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.security.AuthUser;
 import com.marketplace.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class UserController {
   private final UserService userService;
 
   @GetMapping("/me")
-  public ResponseEntity<ApiResponse<UserSummary>> me(@AuthenticationPrincipal AuthUser me) {
+  public ResponseEntity<ApiResponse<UserSummaryResponse>> me(@AuthenticationPrincipal AuthUser me) {
     return ResponseEntity.ok(ApiResponse.ok(userService.getProfile(me.id())));
   }
 }

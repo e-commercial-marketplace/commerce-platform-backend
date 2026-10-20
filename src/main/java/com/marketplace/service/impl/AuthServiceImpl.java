@@ -4,7 +4,7 @@ import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
 import com.marketplace.dto.response.AuthResponse;
-import com.marketplace.dto.response.UserSummary;
+import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.exception.BusinessException;
@@ -88,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
         jwtService.generateAccessToken(user),
         refreshTokenService.issue(user),
         jwtService.accessExpiresInSeconds(),
-        UserSummary.from(user));
+        UserSummaryResponse.from(user));
   }
 
   private static String normalizeEmail(String email) {

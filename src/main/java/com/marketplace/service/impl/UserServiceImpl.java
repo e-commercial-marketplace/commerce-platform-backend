@@ -1,6 +1,6 @@
 package com.marketplace.service.impl;
 
-import com.marketplace.dto.response.UserSummary;
+import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.exception.ResourceNotFoundException;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.UserService;
@@ -17,10 +17,10 @@ public class UserServiceImpl implements UserService {
 
   @Override
   @Transactional(readOnly = true)
-  public UserSummary getProfile(UUID userId) {
+  public UserSummaryResponse getProfile(UUID userId) {
     return userRepository
         .findById(userId)
-        .map(UserSummary::from)
+        .map(UserSummaryResponse::from)
         .orElseThrow(() -> new ResourceNotFoundException("User", userId));
   }
 }
