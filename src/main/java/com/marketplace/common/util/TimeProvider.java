@@ -1,4 +1,4 @@
-package com.marketplace.util;
+package com.marketplace.common.util;
 
 import java.time.Clock;
 import java.time.Instant;

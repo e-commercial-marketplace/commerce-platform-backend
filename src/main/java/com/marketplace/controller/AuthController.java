@@ -1,9 +1,9 @@
 package com.marketplace.controller;
 
+import com.marketplace.common.response.ApiResponse;
 import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
-import com.marketplace.dto.response.ApiResponse;
 import com.marketplace.dto.response.AuthResponse;
 import com.marketplace.security.AuthUser;
 import com.marketplace.service.AuthService;

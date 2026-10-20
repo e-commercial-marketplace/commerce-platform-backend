@@ -1,6 +1,6 @@
 package com.marketplace.controller;
 
-import com.marketplace.dto.response.ApiResponse;
+import com.marketplace.common.response.ApiResponse;
 import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.security.AuthUser;
 import com.marketplace.service.UserService;

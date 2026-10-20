@@ -1,4 +1,4 @@
-package com.marketplace.dto.response;
+package com.marketplace.common.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;

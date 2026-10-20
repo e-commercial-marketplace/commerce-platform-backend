@@ -1,6 +1,6 @@
 package com.marketplace.controller;
 
-import com.marketplace.dto.response.ApiResponse;
+import com.marketplace.common.response.ApiResponse;
 import com.marketplace.dto.response.CategorySummaryResponse;
 import com.marketplace.service.CategoryService;
 import java.util.List;

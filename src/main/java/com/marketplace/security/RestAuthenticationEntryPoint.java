@@ -1,7 +1,7 @@
 package com.marketplace.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.marketplace.dto.response.ApiResponse;
+import com.marketplace.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;

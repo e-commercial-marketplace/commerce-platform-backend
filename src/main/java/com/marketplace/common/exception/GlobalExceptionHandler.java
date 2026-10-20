@@ -1,6 +1,6 @@
-package com.marketplace.exception;
+package com.marketplace.common.exception;
 
-import com.marketplace.dto.response.ApiResponse;
+import com.marketplace.common.response.ApiResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;

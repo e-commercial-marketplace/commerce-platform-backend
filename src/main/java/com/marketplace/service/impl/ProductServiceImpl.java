@@ -8,14 +8,14 @@ import static com.marketplace.repository.ProductSpecifications.priceAtMost;
 import static com.marketplace.repository.ProductSpecifications.ratingAtLeast;
 import static com.marketplace.repository.ProductSpecifications.textMatches;
 
+import com.marketplace.common.exception.BusinessException;
+import com.marketplace.common.exception.ResourceNotFoundException;
+import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductSearchRequest;
-import com.marketplace.dto.response.PageResponse;
 import com.marketplace.dto.response.ProductResponse;
 import com.marketplace.dto.response.ProductSummaryResponse;
 import com.marketplace.entity.Product;
 import com.marketplace.enums.ProductSort;
-import com.marketplace.exception.BusinessException;
-import com.marketplace.exception.ResourceNotFoundException;
 import com.marketplace.mapper.ProductMapper;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.ProductService;

@@ -1,4 +1,4 @@
-package com.marketplace.config;
+package com.marketplace.common.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;

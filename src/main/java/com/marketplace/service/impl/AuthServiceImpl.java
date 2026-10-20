@@ -1,5 +1,6 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
@@ -7,7 +8,6 @@ import com.marketplace.dto.response.AuthResponse;
 import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
-import com.marketplace.exception.BusinessException;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.AuthService;
 import com.marketplace.service.JwtService;

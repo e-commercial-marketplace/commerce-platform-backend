@@ -1,4 +1,4 @@
-package com.marketplace.exception;
+package com.marketplace.common.exception;
 
 import org.springframework.http.HttpStatus;
 

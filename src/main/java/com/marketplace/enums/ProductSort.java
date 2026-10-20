@@ -1,6 +1,6 @@
 package com.marketplace.enums;
 
-import com.marketplace.exception.BusinessException;
+import com.marketplace.common.exception.BusinessException;
 import java.util.Arrays;
 import org.springframework.http.HttpStatus;
 

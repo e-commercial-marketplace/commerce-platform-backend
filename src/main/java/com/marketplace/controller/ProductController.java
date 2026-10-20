@@ -1,8 +1,8 @@
 package com.marketplace.controller;
 
+import com.marketplace.common.response.ApiResponse;
+import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductSearchRequest;
-import com.marketplace.dto.response.ApiResponse;
-import com.marketplace.dto.response.PageResponse;
 import com.marketplace.dto.response.ProductResponse;
 import com.marketplace.dto.response.ProductSummaryResponse;
 import com.marketplace.service.ProductService;

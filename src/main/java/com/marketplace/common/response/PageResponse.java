@@ -1,4 +1,4 @@
-package com.marketplace.dto.response;
+package com.marketplace.common.response;
 
 import java.util.List;
 

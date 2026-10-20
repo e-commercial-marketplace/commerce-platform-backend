@@ -1,4 +1,4 @@
-package com.marketplace.config;
+package com.marketplace.common.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;

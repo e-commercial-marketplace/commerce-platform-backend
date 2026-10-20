@@ -1,11 +1,11 @@
-package com.marketplace.exception;
+package com.marketplace.common.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.marketplace.dto.response.ApiResponse;
+import com.marketplace.common.response.ApiResponse;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;

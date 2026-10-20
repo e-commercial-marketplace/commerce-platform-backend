@@ -1,7 +1,7 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.dto.response.UserSummaryResponse;
-import com.marketplace.exception.ResourceNotFoundException;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.UserService;
 import java.util.UUID;

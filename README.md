@@ -173,11 +173,13 @@ runs automatically.
 Layered under `com.marketplace` (all features share each layer; class names identify the feature):
 
 `config`, `controller`, `service` (+ `impl`), `repository`, `entity`, `enums`, `dto/{request,response}`,
-`mapper`, `security`, `exception`, `util`, `websocket`, `vnpay`, `ai/{tools,rag,memory}`.
+`mapper`, `security`, `websocket`, `vnpay`, `ai/{tools,rag,memory}`, and `common/{config,response,exception,util}`
+for classes shared by every feature.
 
-`config` holds `SecurityConfig` (JWT filter wiring), `WebConfig` (central `/api/v1` prefix for REST
-controllers) and `AdminBootstrap`; `dto/response` holds `ApiResponse`; `exception` holds
-`GlobalExceptionHandler`; `security` holds the JWT filter and the 401/403 handlers.
+`config` holds the auth setup (`SecurityConfig` with the JWT filter wiring, `JwtProperties`, `AdminBootstrap`);
+`security` holds the JWT filter and the 401/403 handlers. `common/config` holds `WebConfig` (central `/api/v1`
+prefix for REST controllers) and `OpenApiConfig`, `common/response` holds `ApiResponse` and `PageResponse`,
+`common/exception` holds the shared exceptions and `GlobalExceptionHandler`, and `common/util` holds `TimeProvider`.
 
 ## Tests
 

@@ -12,7 +12,7 @@ public interface RefreshTokenService {
   /**
    * Dùng token đúng một lần: revoke và trả user sở hữu để phát hành cặp token mới.
    *
-   * @throws com.marketplace.exception.BusinessException 401 nếu token không tồn tại, đã bị
+   * @throws com.marketplace.common.exception.BusinessException 401 nếu token không tồn tại, đã bị
    *     revoke, hết hạn hoặc user bị khoá
    */
   User consume(String rawToken);
