@@ -1,5 +1,6 @@
 package com.marketplace.service;
 
+import com.marketplace.dto.request.ChangePasswordRequest;
 import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
@@ -16,4 +17,10 @@ public interface AuthService {
   AuthResponse refresh(RefreshTokenRequest request);
 
   void logout(RefreshTokenRequest request, UUID currentUserId);
+
+  /**
+   * Đổi mật khẩu của chính user đang đăng nhập; thu hồi mọi refresh token cũ và trả cặp token mới
+   * để thiết bị hiện tại không bị đăng xuất.
+   */
+  AuthResponse changePassword(UUID currentUserId, ChangePasswordRequest request);
 }

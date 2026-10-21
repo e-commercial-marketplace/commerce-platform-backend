@@ -21,6 +21,22 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+  # SMTP để gửi email. Mặc định là Gmail (cổng 587, STARTTLS). Chỉ thật sự gửi khi APP_MAIL_ENABLED=true.
+  # MAIL_PASSWORD với Gmail là App Password 16 ký tự, KHÔNG phải mật khẩu đăng nhập Gmail.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 ---
 # Chỉ nạp .env khi KHÔNG chạy test: test phải cố định theo src/test/resources/application-test.yml
@@ -52,6 +68,17 @@ app:
     # Tuỳ chọn: tạo admin đầu tiên khi DB chưa có admin nào (bỏ trống thì không tạo).
     email: ${APP_ADMIN_EMAIL:}
     password: ${APP_ADMIN_PASSWORD:}
+  mail:
+    # false (mặc định): không gửi email, chỉ ghi mã ra log. CHỈ dùng khi phát triển local.
+    enabled: ${APP_MAIL_ENABLED:false}
+    # Địa chỉ người gửi; với Gmail phải trùng tài khoản MAIL_USERNAME.
+    from: ${APP_MAIL_FROM:${MAIL_USERNAME:}}
+  password-reset:
+    # Quy tắc mã đặt lại mật khẩu theo features/auth/API_CONTRACT.md (Password management).
+    code-ttl-minutes: 15
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+    max-codes-per-hour: 5
 
 management:
   endpoints:
@@ -61,6 +88,11 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    # Không để SMTP quyết định app có "khoẻ" hay không: email chỉ gửi theo kiểu cố gắng, lỗi gửi được xử lý
+    # riêng. Nếu bật, mất kết nối Gmail sẽ làm /actuator/health trả 503 và Render coi deploy là hỏng.
+    mail:
+      enabled: false
 
 # Không lộ chi tiết lỗi framework ra API: mọi lỗi nghiệp vụ đi qua GlobalExceptionHandler
 # với message an toàn; các lỗi còn lại (404, type-mismatch...) dùng message mặc định của Spring.

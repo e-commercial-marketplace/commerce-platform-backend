@@ -1,7 +1,9 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
+import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.util.Emails;
+import com.marketplace.dto.request.ChangePasswordRequest;
 import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
@@ -94,6 +96,34 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public void logout(RefreshTokenRequest request, UUID currentUserId) {
     refreshTokenService.revoke(request.refreshToken(), currentUserId);
+  }
+
+  // Đổi mật khẩu khi đã đăng nhập. currentUserId lấy từ access token, không nhận từ client.
+  @Override
+  @Transactional
+  public AuthResponse changePassword(UUID currentUserId, ChangePasswordRequest request) {
+    // Bước 1: lấy user từ DB (token chỉ mang id và role, không mang mật khẩu).
+    User user =
+        userRepository
+            .findById(currentUserId)
+            .orElseThrow(() -> new ResourceNotFoundException("User", currentUserId));
+    // Bước 2: tài khoản bị khoá thì không cấp token mới, dù access token cũ còn hạn.
+    if (!user.isEnabled()) {
+      throw BusinessException.unauthorized("Account is disabled");
+    }
+    // Bước 3: mật khẩu hiện tại phải đúng. Trả 400 chứ không phải 401, để app không tưởng phiên đã hết hạn.
+    if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+      throw BusinessException.validation("Current password is incorrect");
+    }
+    // Bước 4: mật khẩu mới phải khác mật khẩu đang dùng.
+    if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+      throw BusinessException.validation("New password must be different from the current password");
+    }
+    // Bước 5: lưu hash của mật khẩu mới, rồi thu hồi mọi refresh token cũ (các thiết bị khác bị đăng xuất).
+    user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+    refreshTokenService.revokeAll(user.getId());
+    // Bước 6: cấp cặp token mới cho thiết bị hiện tại. Token mới được tạo SAU khi thu hồi nên không bị thu hồi theo.
+    return issueTokens(user);
   }
 
   // Dùng chung cho register, login, refresh: dựng phản hồi gồm cặp token và thông tin người dùng.
