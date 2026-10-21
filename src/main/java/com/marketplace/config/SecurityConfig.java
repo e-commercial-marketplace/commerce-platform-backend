@@ -94,6 +94,9 @@ public class SecurityConfig {
                     // Endpoint public theo API_CONTRACT §2.1 (controller bổ sung ở Phase 1/2/10).
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login")
                     .permitAll() // đăng ký/đăng nhập không cần token (chưa có token thì không thể có)
+                    .requestMatchers(
+                        HttpMethod.POST, "/api/v1/auth/password/forgot", "/api/v1/auth/password/reset")
+                    .permitAll() // người quên mật khẩu thì không có token; mã trong email thay cho token
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh")
                     .permitAll() // refresh dùng refresh token, không cần access token (access đã hết hạn)
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/logout")
