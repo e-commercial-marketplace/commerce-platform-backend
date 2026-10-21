@@ -1,5 +1,6 @@
 package com.marketplace.service;
 
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductSearchRequest;
 import com.marketplace.dto.response.ProductResponse;
@@ -17,7 +18,7 @@ public interface ProductService {
   PageResponse<ProductSummaryResponse> search(ProductSearchRequest request);
 
   /**
-   * @throws com.marketplace.common.exception.ResourceNotFoundException nếu không có product đang bán với
+   * @throws com.marketplace.common.exception.BusinessException nếu không có product đang bán với
    *     {@code id}
    */
   ProductResponse getActiveProduct(UUID id);

@@ -45,7 +45,7 @@ class GlobalExceptionHandlerTest {
   @Test
   void businessExceptionMapped() {
     ResponseEntity<ApiResponse<Void>> res =
-        handler.handleBusiness(new ForbiddenException("not yours"));
+        handler.handleBusiness(BusinessException.forbidden("not yours"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(res.getBody()).isNotNull();
     assertThat(res.getBody().success()).isFalse();
@@ -56,7 +56,7 @@ class GlobalExceptionHandlerTest {
   @Test
   void notFoundMapped() {
     ResponseEntity<ApiResponse<Void>> res =
-        handler.handleBusiness(new ResourceNotFoundException("Product", "1"));
+        handler.handleBusiness(BusinessException.notFound("Product", "1"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(res.getBody().error().code()).isEqualTo("RESOURCE_NOT_FOUND");
   }

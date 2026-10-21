@@ -1,7 +1,6 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.common.util.Pages;
 import com.marketplace.common.util.TimeProvider;
@@ -117,6 +116,6 @@ public class OrderServiceImpl implements OrderService {
     return orderRepository
         .findByIdAndCustomerId(orderId, customerId)
         .map(orderMapper::toResponse)
-        .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
+        .orElseThrow(() -> BusinessException.notFound("Order", orderId));
   }
 }

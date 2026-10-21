@@ -1,6 +1,6 @@
 package com.marketplace.repository;
 
-import com.marketplace.common.exception.ResourceNotFoundException;
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import jakarta.persistence.LockModeType;
@@ -33,11 +33,11 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
   /** User theo id, không có thì 404 RESOURCE_NOT_FOUND. Dùng chung cho mọi service cần "user phải tồn tại". */
   default User getRequired(UUID id) {
-    return findById(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
+    return findById(id).orElseThrow(() -> BusinessException.notFound("User", id));
   }
 
   /** Như {@link #getRequired} nhưng khoá dòng user tới hết transaction (xem {@link #findByIdForUpdate}). */
   default User lockRequired(UUID id) {
-    return findByIdForUpdate(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
+    return findByIdForUpdate(id).orElseThrow(() -> BusinessException.notFound("User", id));
   }
 }

@@ -10,7 +10,6 @@ import static com.marketplace.repository.ProductSpecifications.soldBy;
 import static com.marketplace.repository.ProductSpecifications.textMatches;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductSearchRequest;
 import com.marketplace.dto.response.ProductResponse;
@@ -87,7 +86,7 @@ public class ProductServiceImpl implements ProductService {
     return productRepository
         .findByIdAndActiveTrue(id)
         .map(productMapper::toResponse)
-        .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        .orElseThrow(() -> BusinessException.notFound("Product", id));
   }
 
   /** {@code id} tăng dần làm tie-breaker để phân trang ổn định. */

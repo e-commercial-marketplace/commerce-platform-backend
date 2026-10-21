@@ -1,12 +1,10 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ForbiddenException;
 import static com.marketplace.repository.ProductSpecifications.activeIs;
 import static com.marketplace.repository.ProductSpecifications.soldBy;
 import static com.marketplace.repository.ProductSpecifications.textMatches;
 
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductCreateRequest;
 import com.marketplace.dto.request.ProductUpdateRequest;
@@ -153,9 +151,9 @@ public class SellerProductServiceImpl implements SellerProductService {
     User user =
         userRepository
             .findById(sellerId)
-            .orElseThrow(() -> new ForbiddenException("Seller account not found"));
+            .orElseThrow(() -> BusinessException.forbidden("Seller account not found"));
     if (user.getRole() != Role.SELLER || user.getSellerStatus() != SellerStatus.APPROVED) {
-      throw new ForbiddenException("Seller is not approved");
+      throw BusinessException.forbidden("Seller is not approved");
     }
     return user;
   }
@@ -168,9 +166,9 @@ public class SellerProductServiceImpl implements SellerProductService {
     Product product =
         productRepository
             .findById(productId)
-            .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
+            .orElseThrow(() -> BusinessException.notFound("Product", productId));
     if (!product.getSeller().getId().equals(sellerId)) {
-      throw new ForbiddenException("Product belongs to another seller");
+      throw BusinessException.forbidden("Product belongs to another seller");
     }
     return product;
   }

@@ -1,8 +1,6 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ForbiddenException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.request.CartItemAddRequest;
 import com.marketplace.dto.request.CartItemUpdateRequest;
@@ -50,7 +48,7 @@ public class CartServiceImpl implements CartService {
     Product product =
         productRepository
             .findById(request.productId())
-            .orElseThrow(() -> new ResourceNotFoundException("Product", request.productId()));
+            .orElseThrow(() -> BusinessException.notFound("Product", request.productId()));
     product.ensureActive();
     // Bước 3: đã có dòng thì cộng dồn, chưa có thì tạo mới. Kiểm tồn kho trên TỔNG số lượng.
     CartItem existing =
@@ -109,7 +107,7 @@ public class CartServiceImpl implements CartService {
             .findById(cartItemId)
             .orElseThrow(() -> BusinessException.cartItemNotFound("Cart item not found"));
     if (!item.getUser().getId().equals(customerId)) {
-      throw new ForbiddenException("Cart item belongs to another customer");
+      throw BusinessException.forbidden("Cart item belongs to another customer");
     }
     return item;
   }

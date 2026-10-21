@@ -37,7 +37,6 @@ public class BusinessException extends RuntimeException {
     this.status = status;
   }
 
-  /** @return mã lỗi để {@code ApiResponse.error.code} trả về cho client */
   /**
    * Lỗi 400 {@code VALIDATION_ERROR}: dữ liệu client gửi không hợp lệ về nghiệp vụ (ví dụ category
    * không tồn tại, tên trùng). Dùng hàm này thay vì tự ghi mã lỗi và status ở từng nơi.
@@ -69,6 +68,22 @@ public class BusinessException extends RuntimeException {
     return new BusinessException("CART_ITEM_NOT_FOUND", message, HttpStatus.NOT_FOUND);
   }
 
+  /**
+   * Lỗi 404 {@code RESOURCE_NOT_FOUND}: không có resource với id đó, hoặc resource không thuộc người gọi
+   * (trả cùng lỗi để không lộ id của người khác có tồn tại hay không).
+   *
+   * @param resource tên dễ đọc, ví dụ {@code Product}, {@code Order}, {@code User}
+   */
+  public static BusinessException notFound(String resource, Object id) {
+    return new BusinessException("RESOURCE_NOT_FOUND", resource + " not found: " + id, HttpStatus.NOT_FOUND);
+  }
+
+  /** Lỗi 403 {@code FORBIDDEN}: đã đăng nhập nhưng không được làm việc này (sai chủ sở hữu, chưa được duyệt). */
+  public static BusinessException forbidden(String message) {
+    return new BusinessException("FORBIDDEN", message, HttpStatus.FORBIDDEN);
+  }
+
+  /** @return mã lỗi để {@code ApiResponse.error.code} trả về cho client */
   public String getCode() {
     return code;
   }
