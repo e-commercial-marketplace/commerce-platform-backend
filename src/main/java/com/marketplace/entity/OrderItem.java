@@ -59,4 +59,25 @@ public class OrderItem {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "seller_id", nullable = false)
   private User seller;
+
+  /**
+   * Chụp lại product tại thời điểm checkout: tên và giá được copy vào dòng hàng, nên seller đổi giá
+   * hay đổi tên sau này không ảnh hưởng đơn cũ. Dòng gắn với seller của product (đơn nhiều seller).
+   */
+  static OrderItem snapshot(Order order, Product product, int quantity) {
+    OrderItem item = new OrderItem();
+    item.order = order;
+    item.product = product;
+    item.seller = product.getSeller();
+    item.productName = product.getName();
+    item.unitPrice = product.getPrice();
+    item.quantity = quantity;
+    item.status = OrderItemStatus.PENDING;
+    return item;
+  }
+
+  /** Thành tiền của dòng theo giá đã chụp. */
+  public BigDecimal lineTotal() {
+    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+  }
 }

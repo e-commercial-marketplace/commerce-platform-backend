@@ -1,6 +1,7 @@
 package com.marketplace.repository;
 
 import com.marketplace.entity.CartItem;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +17,10 @@ public interface CartItemRepository extends JpaRepository<CartItem, UUID> {
    */
   @EntityGraph(attributePaths = "product")
   List<CartItem> findByUserIdOrderByCreatedAtDescIdAsc(UUID userId);
+
+  /** Các dòng được chọn khi checkout, chỉ trong giỏ của customer này; nạp sẵn product. */
+  @EntityGraph(attributePaths = "product")
+  List<CartItem> findByUserIdAndIdIn(UUID userId, Collection<UUID> ids);
 
   /** Dòng giỏ của customer cho một product (mỗi cặp customer và product chỉ có tối đa một dòng). */
   Optional<CartItem> findByUserIdAndProductId(UUID userId, UUID productId);

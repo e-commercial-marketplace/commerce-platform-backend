@@ -9,6 +9,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository
     extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product> {
@@ -29,4 +32,15 @@ public interface ProductRepository
 
   /** Số product đang bán của một seller, dùng cho trang shop công khai. */
   long countBySellerIdAndActiveTrue(UUID sellerId);
+
+  /**
+   * Trừ tồn kho có điều kiện trong MỘT câu UPDATE: chỉ trừ khi product còn bán và còn đủ hàng. Trả về
+   * số dòng bị đổi: 1 là trừ thành công, 0 là không đủ hàng (hoặc vừa bị ẩn). Hai checkout tranh nhau
+   * món cuối cùng: database chỉ cho một bên trừ được, bên kia nhận 0, nên không bao giờ bán quá kho.
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      "update Product p set p.stock = p.stock - :quantity"
+          + " where p.id = :id and p.active = true and p.stock >= :quantity")
+  int decreaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
 }

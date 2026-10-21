@@ -54,4 +54,14 @@ public class Payment {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "order_id", nullable = false)
   private Order order;
+
+  /** Lần thanh toán COD chờ thu tiền khi giao, số tiền bằng tổng của order lúc checkout. */
+  public static Payment pendingCod(Order order) {
+    Payment payment = new Payment();
+    payment.order = order;
+    payment.method = PaymentMethod.COD;
+    payment.status = PaymentStatus.PENDING;
+    payment.amount = order.getTotalAmount();
+    return payment;
+  }
 }
