@@ -95,10 +95,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     SellerStatus sellerStatus = resolveSellerStatus(user, role, request.sellerStatus());
 
     if (request.name() != null) {
-      if (request.name().isBlank()) {
-        throw BusinessException.validation("Name must not be blank");
-      }
-      user.setFullName(request.name().trim());
+      user.setFullName(request.name().trim()); // @NullOrNotBlank ở request đã chặn tên toàn khoảng trắng
     }
     user.updateContact(request.phone(), request.address()); // admin có toàn quyền sửa liên hệ
     user.setRole(role);
