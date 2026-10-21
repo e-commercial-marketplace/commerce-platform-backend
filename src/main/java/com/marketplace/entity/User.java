@@ -1,5 +1,6 @@
 package com.marketplace.entity;
 
+import com.marketplace.common.util.VietnamesePhone;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import jakarta.persistence.Column;
@@ -85,5 +86,20 @@ public class User {
     u.role = role;
     u.sellerStatus = role == Role.SELLER ? SellerStatus.PENDING : null;
     return u;
+  }
+
+  /**
+   * Đổi thông tin liên hệ, dùng chung cho người dùng tự sửa và admin sửa. Tham số {@code null} thì giữ
+   * nguyên; chuỗi rỗng thì xoá. Số điện thoại lưu dạng {@code 0xxxxxxxxx}; giá trị phải đã qua kiểm tra
+   * ở request.
+   */
+  public void updateContact(String phone, String address) {
+    if (phone != null) {
+      this.phone = VietnamesePhone.normalize(phone);
+    }
+    if (address != null) {
+      String trimmed = address.trim();
+      this.address = trimmed.isEmpty() ? null : trimmed;
+    }
   }
 }

@@ -2,8 +2,9 @@ package com.marketplace.controller;
 
 import com.marketplace.common.response.ApiResponse;
 import com.marketplace.dto.request.ChangePasswordRequest;
+import com.marketplace.dto.request.UserProfileUpdateRequest;
 import com.marketplace.dto.response.AuthResponse;
-import com.marketplace.dto.response.UserSummaryResponse;
+import com.marketplace.dto.response.UserProfileResponse;
 import com.marketplace.security.AuthUser;
 import com.marketplace.service.AuthService;
 import com.marketplace.service.UserService;
@@ -27,8 +28,15 @@ public class UserController {
   private final AuthService authService;
 
   @GetMapping("/me")
-  public ResponseEntity<ApiResponse<UserSummaryResponse>> me(@AuthenticationPrincipal AuthUser me) {
+  public ResponseEntity<ApiResponse<UserProfileResponse>> me(@AuthenticationPrincipal AuthUser me) {
     return ResponseEntity.ok(ApiResponse.ok(userService.getProfile(me.id())));
+  }
+
+  // Tự sửa hồ sơ (tên, số điện thoại, địa chỉ). Email, role, trạng thái không sửa được ở đây.
+  @PatchMapping("/me")
+  public ResponseEntity<ApiResponse<UserProfileResponse>> updateMe(
+      @AuthenticationPrincipal AuthUser me, @Valid @RequestBody UserProfileUpdateRequest request) {
+    return ResponseEntity.ok(ApiResponse.ok(userService.updateProfile(me.id(), request)));
   }
 
   // Đổi mật khẩu của chính mình; trả cặp token mới vì mọi refresh token cũ đã bị thu hồi.
