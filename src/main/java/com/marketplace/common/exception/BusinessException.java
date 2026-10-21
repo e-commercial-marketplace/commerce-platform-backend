@@ -54,6 +54,21 @@ public class BusinessException extends RuntimeException {
     return new BusinessException("AUTHENTICATION_REQUIRED", message, HttpStatus.UNAUTHORIZED);
   }
 
+  /** Lỗi 400 {@code PRODUCT_INACTIVE}: product đã ẩn (ngừng bán), không thêm hay sửa trong giỏ được. */
+  public static BusinessException productInactive(String message) {
+    return new BusinessException("PRODUCT_INACTIVE", message, HttpStatus.BAD_REQUEST);
+  }
+
+  /** Lỗi 409 {@code INSUFFICIENT_STOCK}: số lượng yêu cầu vượt tồn kho hiện tại. */
+  public static BusinessException insufficientStock(String message) {
+    return new BusinessException("INSUFFICIENT_STOCK", message, HttpStatus.CONFLICT);
+  }
+
+  /** Lỗi 404 {@code CART_ITEM_NOT_FOUND}: không có dòng giỏ nào với id đó. */
+  public static BusinessException cartItemNotFound(String message) {
+    return new BusinessException("CART_ITEM_NOT_FOUND", message, HttpStatus.NOT_FOUND);
+  }
+
   public String getCode() {
     return code;
   }
