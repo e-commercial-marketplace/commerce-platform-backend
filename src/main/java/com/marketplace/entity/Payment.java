@@ -18,14 +18,12 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /** One payment attempt for an order; retaining failed attempts allows safe retries and audit. */
 @Entity
 @Table(name = "payments")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Payment {
 
