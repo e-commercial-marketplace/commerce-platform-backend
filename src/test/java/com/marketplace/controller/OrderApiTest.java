@@ -13,7 +13,6 @@ import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
-import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.support.TestSupport;
@@ -45,7 +44,6 @@ class OrderApiTest {
 
   @Autowired private MockMvc mvc;
   @Autowired private TestSupport support;
-  @Autowired private CategoryRepository categories;
   @Autowired private ProductRepository products;
   @Autowired private OrderRepository orders;
 
@@ -59,7 +57,7 @@ class OrderApiTest {
     customer = support.user(Role.CUSTOMER, null);
     sellerA = support.user(Role.SELLER, SellerStatus.APPROVED, "Shop A");
     sellerB = support.user(Role.SELLER, SellerStatus.APPROVED, "Shop B");
-    category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
+    category = support.category();
   }
 
   // ---------- checkout thành công ----------
@@ -256,7 +254,7 @@ class OrderApiTest {
   // ---------- hàm hỗ trợ ----------
 
   private Product product(User seller, String name, String price, int stock) {
-    return products.save(Product.create(name, "d", null, new BigDecimal(price), stock, category, seller));
+    return support.product(seller, category, name, price, stock);
   }
 
   private int stockOf(Product product) {

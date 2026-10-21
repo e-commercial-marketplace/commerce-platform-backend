@@ -13,7 +13,6 @@ import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
-import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.support.TestSupport;
 import java.math.BigDecimal;
@@ -43,7 +42,6 @@ class CartApiTest {
 
   @Autowired private MockMvc mvc;
   @Autowired private TestSupport support;
-  @Autowired private CategoryRepository categories;
   @Autowired private ProductRepository products;
 
   private User customer;
@@ -54,7 +52,7 @@ class CartApiTest {
   void setUp() {
     customer = support.user(Role.CUSTOMER, null);
     seller = support.user(Role.SELLER, SellerStatus.APPROVED);
-    category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
+    category = support.category();
   }
 
   // ---------- xem giỏ ----------
@@ -271,7 +269,7 @@ class CartApiTest {
   // ---------- hàm hỗ trợ ----------
 
   private Product product(String name, String price, int stock) {
-    return products.save(Product.create(name, "d", null, new BigDecimal(price), stock, category, seller));
+    return support.product(seller, category, name, price, stock);
   }
 
   private ResultActions cart(User who) throws Exception {
