@@ -111,6 +111,8 @@ public class SecurityConfig {
                     .permitAll() // catalog, review và trang shop đọc là public (chỉ method GET)
                     .requestMatchers(HttpMethod.POST, "/api/v1/ai/ask")
                     .permitAll() // AI hỏi đáp public, không yêu cầu đăng nhập
+                    .requestMatchers("/api/v1/cart/**")
+                    .hasRole("CUSTOMER") // giỏ hàng chỉ dành cho customer: seller, admin -> 403
                     .requestMatchers("/api/v1/seller/**")
                     .hasRole("SELLER") // khu vực seller: sai role (customer, admin) -> 403. Trạng thái APPROVED kiểm tra trong service
                     .requestMatchers("/api/v1/admin/**") // ** khớp mọi đường dẫn con
