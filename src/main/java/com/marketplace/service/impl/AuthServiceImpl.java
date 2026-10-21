@@ -8,9 +8,9 @@ import com.marketplace.dto.request.LoginRequest;
 import com.marketplace.dto.request.RefreshTokenRequest;
 import com.marketplace.dto.request.RegisterRequest;
 import com.marketplace.dto.response.AuthResponse;
-import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
+import com.marketplace.mapper.UserMapper;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.AuthService;
 import com.marketplace.service.JwtService;
@@ -34,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder; // băm mật khẩu và so khớp mật khẩu
   private final JwtService jwtService; // tạo access token
   private final RefreshTokenService refreshTokenService; // tạo/thu hồi refresh token
+  private final UserMapper userMapper; // đổi User sang thông tin trả cho client (không có mật khẩu)
 
   // @Transactional: các thao tác DB trong hàm là một khối, có lỗi thì hoàn tác hết, không ghi nửa chừng.
   @Override
@@ -132,7 +133,7 @@ public class AuthServiceImpl implements AuthService {
         jwtService.generateAccessToken(user), // access token (JWT, sống ngắn)
         refreshTokenService.issue(user), // refresh token (chuỗi ngẫu nhiên, hash lưu DB)
         jwtService.accessExpiresInSeconds(), // access token sống bao nhiêu giây
-        UserSummaryResponse.from(user)); // thông tin người dùng (không có mật khẩu)
+        userMapper.toSummary(user)); // thông tin người dùng (không có mật khẩu)
   }
 
   // Lỗi 400 khi email đã được dùng.

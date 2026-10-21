@@ -1,8 +1,6 @@
 package com.marketplace.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
-import com.marketplace.entity.CartItem;
-import com.marketplace.entity.Product;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -25,22 +23,6 @@ public record CartItemResponse(
     boolean active,
     UUID sellerId,
     Instant createdAt) {
-
-  public static CartItemResponse from(CartItem item) {
-    Product product = item.getProduct();
-    return new CartItemResponse(
-        item.getId(),
-        product.getId(),
-        product.getName(),
-        product.getImageUrl(),
-        product.getPrice(),
-        item.getQuantity(),
-        product.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())), // thành tiền = giá x số lượng
-        product.getStock(),
-        product.isActive(),
-        product.getSeller().getId(), // proxy LAZY: đọc id không cần query thêm
-        item.getCreatedAt());
-  }
 
   /** Mua được khi product còn bán và tồn kho đủ cho số lượng trong giỏ. */
   public boolean purchasable() {
