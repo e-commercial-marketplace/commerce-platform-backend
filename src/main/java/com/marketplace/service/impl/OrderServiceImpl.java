@@ -3,6 +3,7 @@ package com.marketplace.service.impl;
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.PageResponse;
+import com.marketplace.common.util.Pages;
 import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.request.CheckoutRequest;
 import com.marketplace.dto.response.OrderResponse;
@@ -29,8 +30,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,10 +56,7 @@ public class OrderServiceImpl implements OrderService {
   public OrderResponse checkout(UUID customerId, CheckoutRequest request) {
     // Bước 1: khoá dòng user (giống giỏ hàng) để hai lần checkout cùng một giỏ chạy lần lượt,
     // tránh cùng mua một dòng giỏ hai lần.
-    User customer =
-        userRepository
-            .findByIdForUpdate(customerId)
-            .orElseThrow(() -> new ResourceNotFoundException("User", customerId));
+    User customer = userRepository.lockRequired(customerId);
 
     // Bước 2: kiểm tra yêu cầu. Id trùng và phương thức chưa hỗ trợ là lỗi 400.
     Set<UUID> ids = new HashSet<>(request.cartItemIds());
@@ -82,9 +78,7 @@ public class OrderServiceImpl implements OrderService {
     // một thứ tự, tránh deadlock khi hai người mua chéo nhau các món giống nhau.
     for (CartItem line : lines.stream().sorted(Comparator.comparing(l -> l.getProduct().getId())).toList()) {
       Product product = line.getProduct();
-      if (!product.isActive()) {
-        throw BusinessException.productInactive("Product is no longer available: " + product.getName());
-      }
+      product.ensureActive();
       if (productRepository.decreaseStock(product.getId(), line.getQuantity()) != 1) {
         throw BusinessException.insufficientStock("Not enough stock for " + product.getName());
       }
@@ -112,11 +106,9 @@ public class OrderServiceImpl implements OrderService {
   @Override
   @Transactional(readOnly = true)
   public PageResponse<OrderSummaryResponse> listOrders(UUID customerId, int page, int size) {
-    // Mới nhất trước; id làm khoá phụ cho thứ tự ổn định khi hai order cùng thời điểm.
-    PageRequest pageable =
-        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by("id")));
     return PageResponse.from(
-        orderRepository.findByCustomerId(customerId, pageable), orderMapper::toSummary);
+        orderRepository.findByCustomerId(customerId, Pages.newestFirst(page, size)),
+        orderMapper::toSummary);
   }
 
   @Override

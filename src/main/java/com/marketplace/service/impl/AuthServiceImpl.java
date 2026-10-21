@@ -1,7 +1,6 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.util.Emails;
 import com.marketplace.dto.request.ChangePasswordRequest;
 import com.marketplace.dto.request.LoginRequest;
@@ -104,10 +103,7 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public AuthResponse changePassword(UUID currentUserId, ChangePasswordRequest request) {
     // Bước 1: lấy user từ DB (token chỉ mang id và role, không mang mật khẩu).
-    User user =
-        userRepository
-            .findById(currentUserId)
-            .orElseThrow(() -> new ResourceNotFoundException("User", currentUserId));
+    User user = userRepository.getRequired(currentUserId);
     // Bước 2: tài khoản bị khoá thì không cấp token mới, dù access token cũ còn hạn.
     if (!user.isEnabled()) {
       throw BusinessException.unauthorized("Account is disabled");

@@ -1,7 +1,7 @@
 package com.marketplace.service.impl;
 
 import static com.marketplace.repository.ProductSpecifications.inCategory;
-import static com.marketplace.repository.ProductSpecifications.isActive;
+import static com.marketplace.repository.ProductSpecifications.activeIs;
 import static com.marketplace.repository.ProductSpecifications.orderedByRelevance;
 import static com.marketplace.repository.ProductSpecifications.priceAtLeast;
 import static com.marketplace.repository.ProductSpecifications.priceAtMost;
@@ -47,14 +47,14 @@ public class ProductServiceImpl implements ProductService {
     String text = request.q() == null || request.q().isBlank() ? null : request.q().trim();
     ProductSort sort = ProductSort.resolve(request.sort(), text != null);
 
-    Specification<Product> spec = isActive();
+    Specification<Product> spec = activeIs(true); // công khai chỉ thấy product đang bán
     if (text != null) {
       spec = spec.and(textMatches(text));
     }
     if (request.categoryId() != null) {
       spec = spec.and(inCategory(request.categoryId()));
     }
-    // Xem shop của một seller: chỉ giữ product của seller đó (vẫn chỉ là product đang bán, vì spec isActive ở trên).
+    // Xem shop của một seller: chỉ giữ product của seller đó (vẫn chỉ là product đang bán, vì spec activeIs(true) ở trên).
     if (request.sellerId() != null) {
       spec = spec.and(soldBy(request.sellerId()));
     }
