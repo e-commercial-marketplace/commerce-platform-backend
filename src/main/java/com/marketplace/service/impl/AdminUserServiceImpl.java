@@ -10,6 +10,7 @@ import com.marketplace.dto.response.UserResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
+import com.marketplace.mapper.UserMapper;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.repository.UserSpecifications;
 import com.marketplace.service.AdminUserService;
@@ -37,6 +38,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final RefreshTokenService refreshTokenService;
+  private final UserMapper userMapper;
 
   @Override
   @Transactional(readOnly = true)
@@ -51,13 +53,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     // id làm khoá phụ để thứ tự ổn định khi nhiều user cùng thời điểm tạo.
     PageRequest pageable =
         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by("id")));
-    return PageResponse.from(userRepository.findAll(spec, pageable), UserResponse::from);
+    return PageResponse.from(userRepository.findAll(spec, pageable), userMapper::toResponse);
   }
 
   @Override
   @Transactional(readOnly = true)
   public UserResponse get(UUID id) {
-    return UserResponse.from(findUser(id));
+    return userMapper.toResponse(findUser(id));
   }
 
   @Override
@@ -73,7 +75,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             email, passwordEncoder.encode(request.password()), request.name().trim(), request.role());
     user.setEnabled(request.enabled() == null || request.enabled());
     try {
-      return UserResponse.from(userRepository.saveAndFlush(user));
+      return userMapper.toResponse(userRepository.saveAndFlush(user));
     } catch (DataIntegrityViolationException e) {
       throw emailTaken(); // hai request tạo cùng email song song, request này thua
     }
@@ -102,7 +104,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     if (request.enabled() != null) {
       changeEnabled(user, request.enabled());
     }
-    return UserResponse.from(userRepository.saveAndFlush(user));
+    return userMapper.toResponse(userRepository.saveAndFlush(user));
   }
 
   @Override
@@ -124,7 +126,7 @@ public class AdminUserServiceImpl implements AdminUserService {
       throw BusinessException.validation("Seller is already approved");
     }
     seller.setSellerStatus(SellerStatus.APPROVED);
-    return UserResponse.from(userRepository.saveAndFlush(seller));
+    return userMapper.toResponse(userRepository.saveAndFlush(seller));
   }
 
   @Override
@@ -135,7 +137,7 @@ public class AdminUserServiceImpl implements AdminUserService {
       throw BusinessException.validation("Only an approved seller can be suspended");
     }
     seller.setSellerStatus(SellerStatus.SUSPENDED);
-    return UserResponse.from(userRepository.saveAndFlush(seller));
+    return userMapper.toResponse(userRepository.saveAndFlush(seller));
   }
 
   private User findUser(UUID id) {

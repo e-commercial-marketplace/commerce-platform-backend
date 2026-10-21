@@ -1,6 +1,5 @@
 package com.marketplace.dto.response;
 
-import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import java.time.Instant;
@@ -19,17 +18,4 @@ public record UserResponse(
     SellerStatus sellerStatus,
     boolean enabled,
     Instant createdAt,
-    Instant updatedAt) {
-
-  public static UserResponse from(User user) {
-    return new UserResponse(
-        user.getId(),
-        user.getEmail(),
-        user.getFullName(),
-        user.getRole(),
-        user.getSellerStatus(),
-        user.isEnabled(),
-        user.getCreatedAt(),
-        user.getUpdatedAt());
-  }
-}
+    Instant updatedAt) {}
