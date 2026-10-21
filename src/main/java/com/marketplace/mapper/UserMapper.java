@@ -1,5 +1,6 @@
 package com.marketplace.mapper;
 
+import com.marketplace.dto.response.UserProfileResponse;
 import com.marketplace.dto.response.UserResponse;
 import com.marketplace.dto.response.UserSummaryResponse;
 import com.marketplace.entity.User;
@@ -19,4 +20,8 @@ public interface UserMapper {
 
   @Mapping(target = "name", source = "fullName")
   UserResponse toResponse(User user);
+
+  // Hồ sơ của chính user: thêm phone và address (cùng tên với entity nên tự map).
+  @Mapping(target = "name", source = "fullName")
+  UserProfileResponse toProfile(User user);
 }

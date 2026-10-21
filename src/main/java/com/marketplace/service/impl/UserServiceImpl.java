@@ -1,7 +1,9 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.ResourceNotFoundException;
-import com.marketplace.dto.response.UserSummaryResponse;
+import com.marketplace.dto.request.UserProfileUpdateRequest;
+import com.marketplace.dto.response.UserProfileResponse;
+import com.marketplace.entity.User;
 import com.marketplace.mapper.UserMapper;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.UserService;
@@ -19,10 +21,28 @@ public class UserServiceImpl implements UserService {
 
   @Override
   @Transactional(readOnly = true)
-  public UserSummaryResponse getProfile(UUID userId) {
+  public UserProfileResponse getProfile(UUID userId) {
+    return userMapper.toProfile(findUser(userId));
+  }
+
+  @Override
+  @Transactional
+  public UserProfileResponse updateProfile(UUID userId, UserProfileUpdateRequest request) {
+    // Bước 1: user lấy theo id trong token, không bao giờ theo dữ liệu client gửi.
+    User user = findUser(userId);
+    // Bước 2: tên (nếu gửi) đã được request kiểm tra không rỗng; ở đây chỉ cắt khoảng trắng.
+    if (request.name() != null) {
+      user.setFullName(request.name().trim());
+    }
+    // Bước 3: liên hệ dùng chung quy tắc với admin: null giữ nguyên, chuỗi rỗng xoá, số điện thoại chuẩn hoá.
+    user.updateContact(request.phone(), request.address());
+    // Bước 4: flush để updatedAt (@PreUpdate) có giá trị mới, rồi trả hồ sơ sau khi sửa.
+    return userMapper.toProfile(userRepository.saveAndFlush(user));
+  }
+
+  private User findUser(UUID userId) {
     return userRepository
         .findById(userId)
-        .map(userMapper::toSummary)
         .orElseThrow(() -> new ResourceNotFoundException("User", userId));
   }
 }
