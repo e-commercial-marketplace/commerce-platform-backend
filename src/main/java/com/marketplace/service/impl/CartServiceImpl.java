@@ -6,11 +6,11 @@ import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.request.CartItemAddRequest;
 import com.marketplace.dto.request.CartItemUpdateRequest;
-import com.marketplace.dto.response.CartItemResponse;
 import com.marketplace.dto.response.CartResponse;
 import com.marketplace.entity.CartItem;
 import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
+import com.marketplace.mapper.CartMapper;
 import com.marketplace.repository.CartItemRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
@@ -33,6 +33,7 @@ public class CartServiceImpl implements CartService {
   private final ProductRepository productRepository;
   private final UserRepository userRepository;
   private final TimeProvider timeProvider;
+  private final CartMapper cartMapper;
 
   @Override
   @Transactional(readOnly = true)
@@ -93,7 +94,7 @@ public class CartServiceImpl implements CartService {
   private CartResponse buildCart(UUID customerId) {
     return CartResponse.of(
         cartItemRepository.findByUserIdOrderByCreatedAtDescIdAsc(customerId).stream()
-            .map(CartItemResponse::from)
+            .map(cartMapper::toItem)
             .toList());
   }
 
