@@ -74,6 +74,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         User.register(
             email, passwordEncoder.encode(request.password()), request.name().trim(), request.role());
     user.setEnabled(request.enabled() == null || request.enabled());
+    user.updateContact(request.phone(), request.address()); // admin nhập sẵn liên hệ (tuỳ chọn)
     try {
       return userMapper.toResponse(userRepository.saveAndFlush(user));
     } catch (DataIntegrityViolationException e) {
@@ -99,6 +100,7 @@ public class AdminUserServiceImpl implements AdminUserService {
       }
       user.setFullName(request.name().trim());
     }
+    user.updateContact(request.phone(), request.address()); // admin có toàn quyền sửa liên hệ
     user.setRole(role);
     user.setSellerStatus(sellerStatus);
     if (request.enabled() != null) {
