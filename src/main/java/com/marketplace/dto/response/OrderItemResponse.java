@@ -8,10 +8,12 @@ import java.util.UUID;
 /**
  * Một dòng hàng của order. {@code productName} và {@code unitPrice} là bản chụp lúc checkout.
  *
+ * @param orderId order chứa dòng này (seller dùng để gom các dòng cùng một đơn)
  * @param sellerId seller chịu trách nhiệm dòng này (một order có thể có nhiều seller)
  */
 public record OrderItemResponse(
     UUID id,
+    UUID orderId,
     UUID productId,
     String productName,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal unitPrice,

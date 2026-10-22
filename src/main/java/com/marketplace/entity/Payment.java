@@ -62,4 +62,22 @@ public class Payment {
     payment.amount = order.getTotalAmount();
     return payment;
   }
+
+  public boolean isPending() {
+    return status == PaymentStatus.PENDING;
+  }
+
+  /** Cập nhật số tiền theo tổng mới của order; chỉ áp dụng khi payment còn chờ. */
+  public void updatePendingAmount(BigDecimal newAmount) {
+    if (isPending()) {
+      amount = newAmount;
+    }
+  }
+
+  /** Không còn thu được (ví dụ cả order đã huỷ): payment đang chờ kết thúc ở FAILED. */
+  public void markFailed() {
+    if (isPending()) {
+      status = PaymentStatus.FAILED;
+    }
+  }
 }

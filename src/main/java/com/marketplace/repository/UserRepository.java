@@ -3,6 +3,7 @@ package com.marketplace.repository;
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
+import com.marketplace.enums.SellerStatus;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,5 +40,17 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
   /** Như {@link #getRequired} nhưng khoá dòng user tới hết transaction (xem {@link #findByIdForUpdate}). */
   default User lockRequired(UUID id) {
     return findByIdForUpdate(id).orElseThrow(() -> BusinessException.notFound("User", id));
+  }
+
+  /**
+   * Seller đang gọi phải là SELLER và đã APPROVED. Token chỉ mang role, trạng thái duyệt phải đọc từ DB.
+   * Không đạt thì 403, dùng chung cho quản lý sản phẩm và xử lý đơn của seller.
+   */
+  default User getApprovedSeller(UUID id) {
+    User user = findById(id).orElseThrow(() -> BusinessException.forbidden("Seller account not found"));
+    if (user.getRole() != Role.SELLER || user.getSellerStatus() != SellerStatus.APPROVED) {
+      throw BusinessException.forbidden("Seller is not approved");
+    }
+    return user;
   }
 }

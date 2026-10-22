@@ -1,5 +1,6 @@
 package com.marketplace.entity;
 
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.enums.OrderItemStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -77,5 +78,29 @@ public class OrderItem {
   /** Thành tiền của dòng theo giá đã chụp. */
   public BigDecimal lineTotal() {
     return unitPrice.multiply(BigDecimal.valueOf(quantity));
+  }
+
+  /** Seller xác nhận sẽ xử lý dòng này. Chỉ đi được từ PENDING, ngược lại 400. */
+  public void confirm() {
+    if (status != OrderItemStatus.PENDING) {
+      throw BusinessException.validation("Only a PENDING order item can be confirmed");
+    }
+    status = OrderItemStatus.CONFIRMED;
+  }
+
+  /**
+   * Seller huỷ dòng này (PENDING hoặc CONFIRMED). Dòng đã huỷ thì 400, nhờ vậy kho không bị cộng trả
+   * hai lần. Lý do trống được lưu là {@code null}.
+   */
+  public void cancel(String reason) {
+    if (status == OrderItemStatus.CANCELLED) {
+      throw BusinessException.validation("Order item is already cancelled");
+    }
+    status = OrderItemStatus.CANCELLED;
+    cancelReason = reason == null || reason.isBlank() ? null : reason.trim();
+  }
+
+  public boolean isCancelled() {
+    return status == OrderItemStatus.CANCELLED;
   }
 }
