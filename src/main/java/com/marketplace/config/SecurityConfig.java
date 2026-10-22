@@ -2,8 +2,7 @@ package com.marketplace.config;
 
 import com.marketplace.enums.Role;
 import com.marketplace.security.JwtAuthenticationFilter;
-import com.marketplace.security.RestAccessDeniedHandler;
-import com.marketplace.security.RestAuthenticationEntryPoint;
+import com.marketplace.security.RestSecurityErrorHandler;
 import com.marketplace.service.JwtService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +41,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Configuration // class cấu hình: Spring đọc các @Bean bên trong khi khởi động
 @EnableMethodSecurity // bật @PreAuthorize để kiểm tra quyền ngay trên method của controller
-@RequiredArgsConstructor // Lombok tạo constructor nhận 3 field final bên dưới
+@RequiredArgsConstructor // Lombok tạo constructor nhận 2 field final bên dưới
 public class SecurityConfig {
 
   /** Prefix version của mọi REST API (khớp {@code api.prefix} trong application.yml). */
@@ -92,10 +91,8 @@ public class SecurityConfig {
 
   // Dùng để kiểm tra token, được đưa vào JwtAuthenticationFilter.
   private final JwtService jwtService;
-  // Quyết định nội dung lỗi 401 (chưa đăng nhập).
-  private final RestAuthenticationEntryPoint authenticationEntryPoint;
-  // Quyết định nội dung lỗi 403 (đã đăng nhập nhưng sai quyền).
-  private final RestAccessDeniedHandler accessDeniedHandler;
+  // Trả lỗi 401 (chưa đăng nhập) và 403 (sai quyền) theo khung ApiResponse.
+  private final RestSecurityErrorHandler securityErrorHandler;
 
   /**
    * Xây dựng chuỗi filter bảo vệ tất cả request HTTP.
@@ -113,8 +110,8 @@ public class SecurityConfig {
         // Bước 4: chưa đăng nhập -> 401, sai quyền -> 403, cả hai đều trả dạng ApiResponse.
         .exceptionHandling(
             ex ->
-                ex.authenticationEntryPoint(authenticationEntryPoint)
-                    .accessDeniedHandler(accessDeniedHandler))
+                ex.authenticationEntryPoint(securityErrorHandler)
+                    .accessDeniedHandler(securityErrorHandler))
         // Bước 5: filter JWT đứng trước filter đăng nhập mặc định của Spring. Dùng "new" thay vì
         // @Component để filter không bị đăng ký hai lần.
         .addFilterBefore(
