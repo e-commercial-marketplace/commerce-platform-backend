@@ -1,9 +1,9 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.common.util.Emails;
+import com.marketplace.common.util.Pages;
 import com.marketplace.dto.request.AdminUserCreateRequest;
 import com.marketplace.dto.request.AdminUserUpdateRequest;
 import com.marketplace.dto.response.UserResponse;
@@ -18,8 +18,6 @@ import com.marketplace.service.RefreshTokenService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -50,16 +48,14 @@ public class AdminUserServiceImpl implements AdminUserService {
     if (StringUtils.hasText(search)) {
       spec = spec.and(UserSpecifications.emailOrNameContains(search.trim()));
     }
-    // id làm khoá phụ để thứ tự ổn định khi nhiều user cùng thời điểm tạo.
-    PageRequest pageable =
-        PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by("id")));
-    return PageResponse.from(userRepository.findAll(spec, pageable), userMapper::toResponse);
+    return PageResponse.from(
+        userRepository.findAll(spec, Pages.newestFirst(page, size)), userMapper::toResponse);
   }
 
   @Override
   @Transactional(readOnly = true)
   public UserResponse get(UUID id) {
-    return userMapper.toResponse(findUser(id));
+    return userMapper.toResponse(userRepository.getRequired(id));
   }
 
   @Override
@@ -85,7 +81,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   @Override
   @Transactional
   public UserResponse update(UUID id, AdminUserUpdateRequest request, UUID actorId) {
-    User user = findUser(id);
+    User user = userRepository.getRequired(id);
     Role role = request.role() != null ? request.role() : user.getRole();
     if (user.getId().equals(actorId)
         && (role != user.getRole() || Boolean.FALSE.equals(request.enabled()))) {
@@ -95,10 +91,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     SellerStatus sellerStatus = resolveSellerStatus(user, role, request.sellerStatus());
 
     if (request.name() != null) {
-      if (request.name().isBlank()) {
-        throw BusinessException.validation("Name must not be blank");
-      }
-      user.setFullName(request.name().trim());
+      user.setFullName(request.name().trim()); // @NullOrNotBlank ở request đã chặn tên toàn khoảng trắng
     }
     user.updateContact(request.phone(), request.address()); // admin có toàn quyền sửa liên hệ
     user.setRole(role);
@@ -112,7 +105,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   @Override
   @Transactional
   public void disable(UUID id, UUID actorId) {
-    User user = findUser(id);
+    User user = userRepository.getRequired(id);
     if (user.getId().equals(actorId)) {
       throw selfLockout();
     }
@@ -142,13 +135,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     return userMapper.toResponse(userRepository.saveAndFlush(seller));
   }
 
-  private User findUser(UUID id) {
-    return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("User", id));
-  }
 
   /** Tìm user phải là seller: không tồn tại thì 404, tồn tại nhưng không phải seller thì 400. */
   private User findSeller(UUID id) {
-    User user = findUser(id);
+    User user = userRepository.getRequired(id);
     if (user.getRole() != Role.SELLER) {
       throw BusinessException.validation("User is not a seller");
     }

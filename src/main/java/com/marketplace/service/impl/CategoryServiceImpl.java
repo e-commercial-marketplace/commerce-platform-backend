@@ -1,11 +1,10 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.dto.request.CategoryRequest;
 import com.marketplace.dto.response.CategorySummaryResponse;
 import com.marketplace.entity.Category;
-import com.marketplace.mapper.ProductMapper;
+import com.marketplace.mapper.CategoryMapper;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.CategoryService;
@@ -22,12 +21,12 @@ public class CategoryServiceImpl implements CategoryService {
 
   private final CategoryRepository categoryRepository; // đọc/ghi category
   private final ProductRepository productRepository; // kiểm tra category còn product không
-  private final ProductMapper productMapper; // đổi Category thành CategorySummaryResponse
+  private final CategoryMapper categoryMapper; // đổi Category thành CategorySummaryResponse
 
   @Override
   @Transactional(readOnly = true) // chỉ đọc nên khai báo readOnly để nhẹ hơn
   public List<CategorySummaryResponse> listAll() {
-    return productMapper.toCategorySummaries(categoryRepository.findAllByOrderByNameAsc());
+    return categoryMapper.toSummaries(categoryRepository.findAllByOrderByNameAsc());
   }
 
   @Override
@@ -41,7 +40,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
     try {
       // Bước 3: lưu ngay (flush) để nếu hai request tạo cùng tên một lúc thì lỗi unique bật ra tại đây.
-      return productMapper.toCategorySummary(categoryRepository.saveAndFlush(Category.create(name)));
+      return categoryMapper.toSummary(categoryRepository.saveAndFlush(Category.create(name)));
     } catch (DataIntegrityViolationException e) {
       throw duplicateName();
     }
@@ -60,7 +59,7 @@ public class CategoryServiceImpl implements CategoryService {
     category.setName(name);
     try {
       // Bước 3: ghi ngay để bắt lỗi unique do hai request đổi tên chạy song song.
-      return productMapper.toCategorySummary(categoryRepository.saveAndFlush(category));
+      return categoryMapper.toSummary(categoryRepository.saveAndFlush(category));
     } catch (DataIntegrityViolationException e) {
       throw duplicateName();
     }
@@ -79,7 +78,7 @@ public class CategoryServiceImpl implements CategoryService {
 
   /** Tìm category theo id, không có thì 404 RESOURCE_NOT_FOUND. */
   private Category findCategory(UUID id) {
-    return categoryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Category", id));
+    return categoryRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Category", id));
   }
 
   /** Lỗi 400 khi tên category bị trùng. */

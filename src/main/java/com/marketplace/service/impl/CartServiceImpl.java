@@ -1,8 +1,6 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
-import com.marketplace.common.exception.ForbiddenException;
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.request.CartItemAddRequest;
 import com.marketplace.dto.request.CartItemUpdateRequest;
@@ -44,14 +42,14 @@ public class CartServiceImpl implements CartService {
   @Override
   @Transactional
   public CartResponse addItem(UUID customerId, CartItemAddRequest request) {
-    // Bước 1: khoá dòng user để các thao tác sửa giỏ của cùng customer chạy lần lượt (xem findByIdForUpdate).
-    User customer = lockCustomer(customerId);
+    // Bước 1: khoá dòng user để các thao tác sửa giỏ của cùng customer chạy lần lượt (xem UserRepository.lockRequired).
+    User customer = userRepository.lockRequired(customerId);
     // Bước 2: product phải tồn tại (404) và còn bán (400 PRODUCT_INACTIVE).
     Product product =
         productRepository
             .findById(request.productId())
-            .orElseThrow(() -> new ResourceNotFoundException("Product", request.productId()));
-    requireActive(product);
+            .orElseThrow(() -> BusinessException.notFound("Product", request.productId()));
+    product.ensureActive();
     // Bước 3: đã có dòng thì cộng dồn, chưa có thì tạo mới. Kiểm tồn kho trên TỔNG số lượng.
     CartItem existing =
         cartItemRepository.findByUserIdAndProductId(customerId, product.getId()).orElse(null);
@@ -71,10 +69,10 @@ public class CartServiceImpl implements CartService {
   @Override
   @Transactional
   public CartResponse updateItem(UUID customerId, UUID cartItemId, CartItemUpdateRequest request) {
-    lockCustomer(customerId);
+    userRepository.lockRequired(customerId);
     CartItem item = findOwnedItem(customerId, cartItemId);
     // Đặt lại số lượng (không cộng dồn); product vẫn phải còn bán và đủ hàng.
-    requireActive(item.getProduct());
+    item.getProduct().ensureActive();
     requireStock(item.getProduct(), request.quantity());
     item.setQuantity(request.quantity());
     return buildCart(customerId);
@@ -83,7 +81,7 @@ public class CartServiceImpl implements CartService {
   @Override
   @Transactional
   public CartResponse removeItem(UUID customerId, UUID cartItemId) {
-    lockCustomer(customerId);
+    userRepository.lockRequired(customerId);
     // Xoá được cả dòng có product đã ẩn hay hết hàng: đó chính là cách khách dọn giỏ.
     cartItemRepository.delete(findOwnedItem(customerId, cartItemId));
     cartItemRepository.flush(); // xoá thật trước khi đọc lại giỏ
@@ -98,11 +96,6 @@ public class CartServiceImpl implements CartService {
             .toList());
   }
 
-  private User lockCustomer(UUID customerId) {
-    return userRepository
-        .findByIdForUpdate(customerId)
-        .orElseThrow(() -> new ResourceNotFoundException("User", customerId));
-  }
 
   /**
    * Theo contract: không có dòng với id đó thì 404 CART_ITEM_NOT_FOUND; dòng có thật nhưng thuộc
@@ -114,15 +107,9 @@ public class CartServiceImpl implements CartService {
             .findById(cartItemId)
             .orElseThrow(() -> BusinessException.cartItemNotFound("Cart item not found"));
     if (!item.getUser().getId().equals(customerId)) {
-      throw new ForbiddenException("Cart item belongs to another customer");
+      throw BusinessException.forbidden("Cart item belongs to another customer");
     }
     return item;
-  }
-
-  private static void requireActive(Product product) {
-    if (!product.isActive()) {
-      throw BusinessException.productInactive("Product is no longer available");
-    }
   }
 
   private static void requireStock(Product product, long quantity) {

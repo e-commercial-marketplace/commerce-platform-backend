@@ -1,10 +1,15 @@
 package com.marketplace.support;
 
+import com.marketplace.entity.Category;
+import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
+import com.marketplace.repository.CategoryRepository;
+import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.JwtService;
+import java.math.BigDecimal;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -24,10 +29,28 @@ public class TestSupport {
 
   private final UserRepository users; // lưu người dùng thật vào H2 của test
   private final JwtService jwtService; // tạo access token đúng như app thật
+  private final CategoryRepository categories; // lưu category cho test catalog, giỏ hàng, order
+  private final ProductRepository products; // lưu product cho các test đó
 
-  public TestSupport(UserRepository users, JwtService jwtService) {
+  public TestSupport(
+      UserRepository users,
+      JwtService jwtService,
+      CategoryRepository categories,
+      ProductRepository products) {
     this.users = users;
     this.jwtService = jwtService;
+    this.categories = categories;
+    this.products = products;
+  }
+
+  /** Tạo và lưu một category với tên ngẫu nhiên (tránh trùng tên giữa các test trong cùng H2). */
+  public Category category() {
+    return categories.save(Category.create("Cat-" + UUID.randomUUID()));
+  }
+
+  /** Tạo và lưu một product đang bán của {@code seller}; {@code price} dạng chuỗi như {@code "59.00"}. */
+  public Product product(User seller, Category category, String name, String price, int stock) {
+    return products.save(Product.create(name, "d", null, new BigDecimal(price), stock, category, seller));
   }
 
   /** Tạo và lưu một người dùng với email ngẫu nhiên (tránh trùng giữa các test trong cùng H2). */

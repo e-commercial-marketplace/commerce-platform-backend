@@ -1,11 +1,10 @@
 package com.marketplace.dto.request;
 
-import com.marketplace.common.util.VietnamesePhone;
+import com.marketplace.common.validation.VietnamesePhoneNumber;
 import com.marketplace.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -22,5 +21,5 @@ public record AdminUserCreateRequest(
     @NotBlank @Size(max = 255) String name,
     @NotNull Role role,
     Boolean enabled,
-    @Pattern(regexp = VietnamesePhone.PATTERN, message = "must be a Vietnamese mobile number") String phone,
+    @VietnamesePhoneNumber String phone,
     @Size(max = 500) String address) {}

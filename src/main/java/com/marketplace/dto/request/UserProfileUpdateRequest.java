@@ -1,7 +1,7 @@
 package com.marketplace.dto.request;
 
-import com.marketplace.common.util.VietnamesePhone;
-import jakarta.validation.constraints.Pattern;
+import com.marketplace.common.validation.NullOrNotBlank;
+import com.marketplace.common.validation.VietnamesePhoneNumber;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -13,6 +13,6 @@ import jakarta.validation.constraints.Size;
  * @param address tối đa 500 ký tự, hoặc chuỗi rỗng để xoá
  */
 public record UserProfileUpdateRequest(
-    @Size(max = 255) @Pattern(regexp = "(?s).*\\S.*", message = "must not be blank") String name,
-    @Pattern(regexp = VietnamesePhone.PATTERN, message = "must be a Vietnamese mobile number") String phone,
+    @Size(max = 255) @NullOrNotBlank String name,
+    @VietnamesePhoneNumber String phone,
     @Size(max = 500) String address) {}

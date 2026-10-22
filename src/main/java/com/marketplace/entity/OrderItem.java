@@ -16,14 +16,12 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /** One seller-owned line in an order, including immutable product name and unit-price snapshots. */
 @Entity
 @Table(name = "order_items")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItem {
 
@@ -59,4 +57,25 @@ public class OrderItem {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "seller_id", nullable = false)
   private User seller;
+
+  /**
+   * Chụp lại product tại thời điểm checkout: tên và giá được copy vào dòng hàng, nên seller đổi giá
+   * hay đổi tên sau này không ảnh hưởng đơn cũ. Dòng gắn với seller của product (đơn nhiều seller).
+   */
+  static OrderItem snapshot(Order order, Product product, int quantity) {
+    OrderItem item = new OrderItem();
+    item.order = order;
+    item.product = product;
+    item.seller = product.getSeller();
+    item.productName = product.getName();
+    item.unitPrice = product.getPrice();
+    item.quantity = quantity;
+    item.status = OrderItemStatus.PENDING;
+    return item;
+  }
+
+  /** Thành tiền của dòng theo giá đã chụp. */
+  public BigDecimal lineTotal() {
+    return unitPrice.multiply(BigDecimal.valueOf(quantity));
+  }
 }

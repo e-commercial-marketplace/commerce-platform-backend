@@ -12,11 +12,6 @@ public final class ProductSpecifications {
 
   private ProductSpecifications() {}
 
-  /** Chỉ lấy product đang bán; product xoá mềm ({@code active = false}) bị ẩn khỏi đọc công khai. */
-  public static Specification<Product> isActive() {
-    return (root, query, cb) -> cb.isTrue(root.get("active"));
-  }
-
   /** Lọc theo trạng thái hiển thị: {@code true} chỉ lấy product đang bán, {@code false} chỉ lấy product đã ẩn. */
   public static Specification<Product> activeIs(boolean active) {
     return (root, query, cb) -> cb.equal(root.get("active"), active);

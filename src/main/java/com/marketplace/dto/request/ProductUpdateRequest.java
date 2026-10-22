@@ -1,8 +1,8 @@
 package com.marketplace.dto.request;
 
+import com.marketplace.common.validation.NullOrNotBlank;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -15,7 +15,7 @@ import java.util.UUID;
  */
 public record ProductUpdateRequest(
     // Nếu có tên thì không được toàn khoảng trắng.
-    @Pattern(regexp = ".*\\S.*", message = "must not be blank") @Size(max = 255) String name,
+    @NullOrNotBlank @Size(max = 255) String name,
     String description,
     @Size(max = 2048) String imageUrl,
     @DecimalMin(value = "0", inclusive = false) @Digits(integer = 17, fraction = 2) BigDecimal price,

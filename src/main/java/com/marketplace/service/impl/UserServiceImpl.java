@@ -1,6 +1,5 @@
 package com.marketplace.service.impl;
 
-import com.marketplace.common.exception.ResourceNotFoundException;
 import com.marketplace.dto.request.UserProfileUpdateRequest;
 import com.marketplace.dto.response.UserProfileResponse;
 import com.marketplace.entity.User;
@@ -22,14 +21,14 @@ public class UserServiceImpl implements UserService {
   @Override
   @Transactional(readOnly = true)
   public UserProfileResponse getProfile(UUID userId) {
-    return userMapper.toProfile(findUser(userId));
+    return userMapper.toProfile(userRepository.getRequired(userId));
   }
 
   @Override
   @Transactional
   public UserProfileResponse updateProfile(UUID userId, UserProfileUpdateRequest request) {
     // Bước 1: user lấy theo id trong token, không bao giờ theo dữ liệu client gửi.
-    User user = findUser(userId);
+    User user = userRepository.getRequired(userId);
     // Bước 2: tên (nếu gửi) đã được request kiểm tra không rỗng; ở đây chỉ cắt khoảng trắng.
     if (request.name() != null) {
       user.setFullName(request.name().trim());
@@ -40,9 +39,4 @@ public class UserServiceImpl implements UserService {
     return userMapper.toProfile(userRepository.saveAndFlush(user));
   }
 
-  private User findUser(UUID userId) {
-    return userRepository
-        .findById(userId)
-        .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-  }
 }
