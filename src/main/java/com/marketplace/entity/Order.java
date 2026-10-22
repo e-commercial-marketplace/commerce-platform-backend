@@ -101,13 +101,35 @@ public class Order {
   public OrderItem addItem(Product product, int quantity) {
     OrderItem item = OrderItem.snapshot(this, product, quantity);
     items.add(item);
-    // tổng = cộng (giá x số lượng) mọi dòng - giảm giá + phí ship
+    recalculateTotal();
+    return item;
+  }
+
+  /**
+   * Gọi sau khi huỷ một dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để
+   * xem lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00.
+   */
+  public void recalculateAfterCancellation() {
+    if (items.stream().allMatch(OrderItem::isCancelled)) {
+      status = OrderStatus.CANCELLED;
+      totalAmount = BigDecimal.ZERO.setScale(2);
+      return;
+    }
+    recalculateTotal();
+  }
+
+  public boolean isCancelled() {
+    return status == OrderStatus.CANCELLED;
+  }
+
+  /** Tổng = cộng (giá x số lượng) các dòng chưa huỷ - giảm giá + phí ship. */
+  private void recalculateTotal() {
     totalAmount =
         items.stream()
+            .filter(item -> !item.isCancelled())
             .map(OrderItem::lineTotal)
             .reduce(BigDecimal.ZERO, BigDecimal::add)
             .subtract(discountAmount)
             .add(shippingFee);
-    return item;
   }
 }

@@ -43,4 +43,9 @@ public interface ProductRepository
       "update Product p set p.stock = p.stock - :quantity"
           + " where p.id = :id and p.active = true and p.stock >= :quantity")
   int decreaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
+
+  /** Cộng lại tồn kho khi một dòng hàng bị huỷ (không cần điều kiện: cộng thêm luôn hợp lệ). */
+  @Modifying(flushAutomatically = true)
+  @Query("update Product p set p.stock = p.stock + :quantity where p.id = :id")
+  int increaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
 }
