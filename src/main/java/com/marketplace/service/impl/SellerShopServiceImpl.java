@@ -1,6 +1,6 @@
 package com.marketplace.service.impl;
 
-import com.marketplace.common.exception.ResourceNotFoundException;
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.dto.response.SellerShopResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
@@ -29,7 +29,7 @@ public class SellerShopServiceImpl implements SellerShopService {
         userRepository
             .findById(sellerId)
             .filter(u -> u.getRole() == Role.SELLER && u.getSellerStatus() == SellerStatus.APPROVED)
-            .orElseThrow(() -> new ResourceNotFoundException("Seller", sellerId));
+            .orElseThrow(() -> BusinessException.notFound("Seller", sellerId));
     // Bước 2: đếm số product đang bán; chỉ trả tên (tên shop) và số lượng, không lộ email hay dữ liệu riêng tư.
     return new SellerShopResponse(
         seller.getId(), seller.getFullName(), productRepository.countBySellerIdAndActiveTrue(sellerId));

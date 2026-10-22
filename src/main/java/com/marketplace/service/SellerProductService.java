@@ -1,5 +1,6 @@
 package com.marketplace.service;
 
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.ProductCreateRequest;
 import com.marketplace.dto.request.ProductUpdateRequest;
@@ -12,9 +13,9 @@ import java.util.UUID;
  * Quản lý product của seller. Mọi hàm nhận {@code sellerId} lấy từ token (không bao giờ từ client)
  * và chỉ cho phép seller đã được duyệt thao tác trên product của chính mình.
  *
- * <p>Lỗi chung của các hàm: {@link com.marketplace.common.exception.ForbiddenException} (403) nếu seller
+ * <p>Lỗi chung của các hàm: {@link com.marketplace.common.exception.BusinessException} (403) nếu seller
  * chưa {@code APPROVED} hoặc product thuộc seller khác; {@link
- * com.marketplace.common.exception.ResourceNotFoundException} (404) nếu không có product với id đó.
+ * com.marketplace.common.exception.BusinessException} (404) nếu không có product với id đó.
  */
 public interface SellerProductService {
 

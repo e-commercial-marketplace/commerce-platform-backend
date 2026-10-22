@@ -22,14 +22,13 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 
 /** Customer checkout aggregate; business state transitions belong in the order service. */
 @Entity
 @Table(name = "orders")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order {
 
@@ -65,9 +64,12 @@ public class Order {
   @JoinColumn(name = "voucher_code")
   private Voucher voucher;
 
+  // BatchSize: đọc items/payments của nhiều order bằng một câu IN (...), tránh một query cho mỗi order.
+  @BatchSize(size = 50)
   @OneToMany(mappedBy = "order", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
   private List<OrderItem> items = new ArrayList<>();
 
+  @BatchSize(size = 50)
   @OneToMany(mappedBy = "order")
   private List<Payment> payments = new ArrayList<>();
 
@@ -77,5 +79,57 @@ public class Order {
   @PrePersist
   void onCreate() {
     if (createdAt == null) createdAt = Instant.now();
+  }
+
+  /**
+   * Mở một order mới ở trạng thái PENDING. Phí ship cố định 0.00 và chưa có voucher (voucher làm ở
+   * Phase 8), nên giảm giá cũng là 0.00. Tổng tiền tăng dần khi thêm từng dòng hàng.
+   */
+  public static Order place(User customer, String shippingAddress, Instant now) {
+    Order order = new Order();
+    order.customer = customer;
+    order.shippingAddress = shippingAddress;
+    order.createdAt = now;
+    order.status = OrderStatus.PENDING;
+    order.shippingFee = BigDecimal.ZERO.setScale(2);
+    order.discountAmount = BigDecimal.ZERO.setScale(2);
+    order.totalAmount = BigDecimal.ZERO.setScale(2);
+    return order;
+  }
+
+  /** Thêm một dòng hàng chụp lại tên và giá hiện tại của product, rồi tính lại tổng tiền. */
+  public OrderItem addItem(Product product, int quantity) {
+    OrderItem item = OrderItem.snapshot(this, product, quantity);
+    items.add(item);
+    recalculateTotal();
+    return item;
+  }
+
+  /**
+   * Gọi sau khi huỷ một dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để
+   * xem lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00.
+   */
+  public void recalculateAfterCancellation() {
+    if (items.stream().allMatch(OrderItem::isCancelled)) {
+      status = OrderStatus.CANCELLED;
+      totalAmount = BigDecimal.ZERO.setScale(2);
+      return;
+    }
+    recalculateTotal();
+  }
+
+  public boolean isCancelled() {
+    return status == OrderStatus.CANCELLED;
+  }
+
+  /** Tổng = cộng (giá x số lượng) các dòng chưa huỷ - giảm giá + phí ship. */
+  private void recalculateTotal() {
+    totalAmount =
+        items.stream()
+            .filter(item -> !item.isCancelled())
+            .map(OrderItem::lineTotal)
+            .reduce(BigDecimal.ZERO, BigDecimal::add)
+            .subtract(discountAmount)
+            .add(shippingFee);
   }
 }

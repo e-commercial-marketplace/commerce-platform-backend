@@ -45,7 +45,7 @@ class GlobalExceptionHandlerTest {
   @Test
   void businessExceptionMapped() {
     ResponseEntity<ApiResponse<Void>> res =
-        handler.handleBusiness(new ForbiddenException("not yours"));
+        handler.handleBusiness(BusinessException.forbidden("not yours"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     assertThat(res.getBody()).isNotNull();
     assertThat(res.getBody().success()).isFalse();
@@ -56,7 +56,7 @@ class GlobalExceptionHandlerTest {
   @Test
   void notFoundMapped() {
     ResponseEntity<ApiResponse<Void>> res =
-        handler.handleBusiness(new ResourceNotFoundException("Product", "1"));
+        handler.handleBusiness(BusinessException.notFound("Product", "1"));
     assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     assertThat(res.getBody().error().code()).isEqualTo("RESOURCE_NOT_FOUND");
   }
@@ -84,10 +84,11 @@ class GlobalExceptionHandlerTest {
 
   @Test
   void businessExceptionCarriesStatus() {
-    BusinessException ex =
-        new BusinessException("TEST", "msg", HttpStatus.UNPROCESSABLE_ENTITY);
-    assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-    assertThat(ex.getCode()).isEqualTo("TEST");
+    // Mã và HTTP status luôn đi cùng nhau qua ErrorCode.
+    BusinessException ex = BusinessException.insufficientStock("msg");
+    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INSUFFICIENT_STOCK);
+    assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(handler.handleBusiness(ex).getBody().error().code()).isEqualTo("INSUFFICIENT_STOCK");
   }
 
   // Serialize JSON thật để chắc envelope trên dây khớp contract (traceId, fieldErrors, NON_NULL).

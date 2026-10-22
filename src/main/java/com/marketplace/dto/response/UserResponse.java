@@ -14,6 +14,8 @@ public record UserResponse(
     UUID id,
     String email,
     String name,
+    String phone,
+    String address,
     Role role,
     SellerStatus sellerStatus,
     boolean enabled,

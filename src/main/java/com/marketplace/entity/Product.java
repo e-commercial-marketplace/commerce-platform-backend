@@ -1,5 +1,6 @@
 package com.marketplace.entity;
 
+import com.marketplace.common.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -80,5 +81,15 @@ public class Product {
     product.seller = seller;
     product.active = true;
     return product;
+  }
+
+  /**
+   * Product phải còn bán, nếu không thì lỗi 400 PRODUCT_INACTIVE. Quy tắc này dùng chung cho giỏ hàng
+   * và checkout, nên đặt ngay trên product thay vì chép lại ở từng service.
+   */
+  public void ensureActive() {
+    if (!active) {
+      throw BusinessException.productInactive("Product is no longer available: " + name);
+    }
   }
 }

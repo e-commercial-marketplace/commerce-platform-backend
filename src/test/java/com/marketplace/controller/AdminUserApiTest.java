@@ -16,7 +16,6 @@ import com.marketplace.entity.Category;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
-import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.support.TestSupport;
 import java.util.UUID;
@@ -47,7 +46,6 @@ class AdminUserApiTest {
   @Autowired private MockMvc mvc;
   @Autowired private TestSupport support;
   @Autowired private UserRepository users;
-  @Autowired private CategoryRepository categories;
 
   private User admin;
 
@@ -311,7 +309,7 @@ class AdminUserApiTest {
   @Test
   void pendingSellerCannotSellUntilAdminApprovesAndCannotAfterSuspend() throws Exception {
     User seller = support.user(Role.SELLER, SellerStatus.PENDING);
-    Category category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
+    Category category = support.category();
     String product =
         "{\"name\":\"P\",\"description\":\"d\",\"price\":\"10.00\",\"stock\":1,\"categoryId\":\""
             + category.getId()

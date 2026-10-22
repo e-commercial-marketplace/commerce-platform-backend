@@ -18,14 +18,12 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /** One payment attempt for an order; retaining failed attempts allows safe retries and audit. */
 @Entity
 @Table(name = "payments")
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Payment {
 
@@ -54,4 +52,32 @@ public class Payment {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "order_id", nullable = false)
   private Order order;
+
+  /** Lần thanh toán COD chờ thu tiền khi giao, số tiền bằng tổng của order lúc checkout. */
+  public static Payment pendingCod(Order order) {
+    Payment payment = new Payment();
+    payment.order = order;
+    payment.method = PaymentMethod.COD;
+    payment.status = PaymentStatus.PENDING;
+    payment.amount = order.getTotalAmount();
+    return payment;
+  }
+
+  public boolean isPending() {
+    return status == PaymentStatus.PENDING;
+  }
+
+  /** Cập nhật số tiền theo tổng mới của order; chỉ áp dụng khi payment còn chờ. */
+  public void updatePendingAmount(BigDecimal newAmount) {
+    if (isPending()) {
+      amount = newAmount;
+    }
+  }
+
+  /** Không còn thu được (ví dụ cả order đã huỷ): payment đang chờ kết thúc ở FAILED. */
+  public void markFailed() {
+    if (isPending()) {
+      status = PaymentStatus.FAILED;
+    }
+  }
 }

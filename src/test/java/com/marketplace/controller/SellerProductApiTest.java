@@ -59,7 +59,7 @@ class SellerProductApiTest {
   @BeforeEach
   void setUp() {
     seller = support.user(Role.SELLER, SellerStatus.APPROVED);
-    category = categories.save(Category.create("Cat-" + UUID.randomUUID()));
+    category = support.category();
   }
 
   // ---------- tạo product ----------
@@ -390,8 +390,7 @@ class SellerProductApiTest {
 
   /** Tạo và lưu một product đang bán thuộc seller. */
   private Product product(User owner, String name, int stock) {
-    return products.save(
-        Product.create(name, "desc", null, new BigDecimal("10.00"), stock, category, owner));
+    return support.product(owner, category, name, "10.00", stock);
   }
 
   /** Dựng JSON tạo product; {@code active == null} thì bỏ trường active. */
