@@ -25,6 +25,7 @@ public interface OrderMapper {
   @Mapping(target = "paymentMethod", expression = "java(latestPayment(order).getMethod())")
   OrderSummaryResponse toSummary(Order order);
 
+  @Mapping(target = "orderId", source = "order.id")
   @Mapping(target = "productId", source = "product.id")
   @Mapping(target = "sellerId", source = "seller.id") // proxy LAZY: đọc id không cần query thêm
   OrderItemResponse toItem(OrderItem item);
