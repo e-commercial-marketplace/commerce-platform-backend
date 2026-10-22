@@ -84,10 +84,11 @@ class GlobalExceptionHandlerTest {
 
   @Test
   void businessExceptionCarriesStatus() {
-    BusinessException ex =
-        new BusinessException("TEST", "msg", HttpStatus.UNPROCESSABLE_ENTITY);
-    assertThat(ex.getStatus()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-    assertThat(ex.getCode()).isEqualTo("TEST");
+    // Mã và HTTP status luôn đi cùng nhau qua ErrorCode.
+    BusinessException ex = BusinessException.insufficientStock("msg");
+    assertThat(ex.getErrorCode()).isEqualTo(ErrorCode.INSUFFICIENT_STOCK);
+    assertThat(ex.getErrorCode().getStatus()).isEqualTo(HttpStatus.CONFLICT);
+    assertThat(handler.handleBusiness(ex).getBody().error().code()).isEqualTo("INSUFFICIENT_STOCK");
   }
 
   // Serialize JSON thật để chắc envelope trên dây khớp contract (traceId, fieldErrors, NON_NULL).

@@ -6,7 +6,6 @@ import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -18,31 +17,24 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 // Bắt exception tập trung cho mọi controller -> luôn trả về khung ApiResponse thống nhất.
+// Mã lỗi và HTTP status luôn lấy từ ErrorCode, không ghép tay ở từng hàm.
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-  // Lỗi nghiệp vụ do service ném (BusinessException và subclass): giữ nguyên status + code.
+  // Lỗi nghiệp vụ do service ném: mã và status theo ErrorCode của exception, message do service đặt.
   @ExceptionHandler(BusinessException.class)
   public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
-    return ResponseEntity.status(ex.getStatus())
-        .body(ApiResponse.fail(ex.getCode(), ex.getMessage()));
+    return error(ex.getErrorCode(), ex.getMessage(), null);
   }
 
   // Lỗi validate @Valid trên @RequestBody: trả toàn bộ fieldErrors để client highlight từng field.
-  // Message tổng hợp từ lỗi đầu tiên để tương thích client chỉ đọc message.
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
     Map<String, String> fieldErrors = new LinkedHashMap<>();
     for (FieldError f : ex.getBindingResult().getFieldErrors()) {
       fieldErrors.putIfAbsent(f.getField(), f.getDefaultMessage());
     }
-    String message =
-        fieldErrors.entrySet().stream()
-            .map(e -> e.getKey() + ": " + e.getValue())
-            .findFirst()
-            .orElse("Validation failed");
-    return ResponseEntity.badRequest()
-        .body(ApiResponse.fail("VALIDATION_ERROR", message, fieldErrors));
+    return validationError(fieldErrors);
   }
 
   // Lỗi validate trên @RequestParam/@PathVariable (@Validated ở controller).
@@ -53,23 +45,7 @@ public class GlobalExceptionHandler {
     for (ConstraintViolation<?> v : ex.getConstraintViolations()) {
       fieldErrors.putIfAbsent(leafNode(v.getPropertyPath()), v.getMessage());
     }
-    // Message tổng hợp từ field lá (không dùng ex.getMessage() vì chứa full path).
-    String message =
-        fieldErrors.entrySet().stream()
-            .map(e -> e.getKey() + ": " + e.getValue())
-            .findFirst()
-            .orElse("Validation failed");
-    return ResponseEntity.badRequest()
-        .body(ApiResponse.fail("VALIDATION_ERROR", message, fieldErrors));
-  }
-
-  /** Lấy tên node lá của property path (ví dụ "register.email" -> "email"). */
-  private static String leafNode(Path path) {
-    String leaf = null;
-    for (Path.Node node : path) {
-      leaf = node.getName();
-    }
-    return leaf != null ? leaf : path.toString();
+    return validationError(fieldErrors);
   }
 
   // Query param/path variable sai kiểu (ví dụ categoryId=abc, page=x): lỗi của client -> 400.
@@ -77,39 +53,66 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
       MethodArgumentTypeMismatchException ex) {
-    String message = ex.getName() + ": invalid value";
-    return ResponseEntity.badRequest()
-        .body(ApiResponse.fail("VALIDATION_ERROR", message, Map.of(ex.getName(), "Invalid value")));
+    return error(
+        ErrorCode.VALIDATION_ERROR,
+        ex.getName() + ": invalid value",
+        Map.of(ex.getName(), "Invalid value"));
   }
 
   // Body JSON hỏng hoặc giá trị enum không hợp lệ (ví dụ "role": "FOO"): lỗi của client -> 400,
   // không để rơi xuống fallback 500. Không trả message gốc vì nó lộ tên class/kiểu nội bộ.
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex) {
-    return ResponseEntity.badRequest()
-        .body(ApiResponse.fail("VALIDATION_ERROR", "Malformed request body"));
+    return error(ErrorCode.VALIDATION_ERROR, "Malformed request body", null);
   }
 
   // @PreAuthorize từ chối ném AccessDeniedException bên trong controller, nên advice này bắt trước
   // Spring Security; thiếu handler thì fallback bên dưới biến nó thành 500.
   @ExceptionHandler(AccessDeniedException.class)
   public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
-    return ResponseEntity.status(HttpStatus.FORBIDDEN)
-        .body(ApiResponse.fail("FORBIDDEN", "Access denied"));
-  }
-
-  // Fallback cuối cùng: lỗi chưa lường trước -> 500, che message gốc để không lộ chi tiết nội bộ.
-  @ExceptionHandler(Exception.class)
-  public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
-    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .body(ApiResponse.fail("INTERNAL_ERROR", "Unexpected error"));
+    return error(ErrorCode.FORBIDDEN);
   }
 
   // Request tới đường dẫn không khớp handler nào (client gọi sai URL): Spring ném
   // NoResourceFoundException, phải trả 404 theo contract thay vì để fallback đổi thành 500.
   @ExceptionHandler(NoResourceFoundException.class)
   public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND)
-        .body(ApiResponse.fail("RESOURCE_NOT_FOUND", "Resource not found"));
+    return error(ErrorCode.RESOURCE_NOT_FOUND);
+  }
+
+  // Fallback cuối cùng: lỗi chưa lường trước -> 500, che message gốc để không lộ chi tiết nội bộ.
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ApiResponse<Void>> handleUnknown(Exception ex) {
+    return error(ErrorCode.INTERNAL_ERROR);
+  }
+
+  /** 400 VALIDATION_ERROR; message lấy từ lỗi đầu tiên cho client chỉ đọc message. */
+  private static ResponseEntity<ApiResponse<Void>> validationError(Map<String, String> fieldErrors) {
+    String message =
+        fieldErrors.entrySet().stream()
+            .map(e -> e.getKey() + ": " + e.getValue())
+            .findFirst()
+            .orElse(ErrorCode.VALIDATION_ERROR.getDefaultMessage());
+    return error(ErrorCode.VALIDATION_ERROR, message, fieldErrors);
+  }
+
+  /** Lỗi với câu mặc định của mã (dùng khi không được lộ message gốc). */
+  private static ResponseEntity<ApiResponse<Void>> error(ErrorCode code) {
+    return error(code, code.getDefaultMessage(), null);
+  }
+
+  /** Dựng response lỗi: status theo mã, body theo khung ApiResponse. */
+  private static ResponseEntity<ApiResponse<Void>> error(
+      ErrorCode code, String message, Map<String, String> fieldErrors) {
+    return ResponseEntity.status(code.getStatus())
+        .body(ApiResponse.fail(code.name(), message, fieldErrors));
+  }
+
+  private static String leafNode(Path path) {
+    String leaf = null;
+    for (Path.Node node : path) {
+      leaf = node.getName();
+    }
+    return leaf != null ? leaf : path.toString();
   }
 }
