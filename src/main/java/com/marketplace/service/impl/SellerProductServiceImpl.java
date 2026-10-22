@@ -14,8 +14,6 @@ import com.marketplace.dto.response.ProductSummaryResponse;
 import com.marketplace.entity.Category;
 import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
-import com.marketplace.enums.Role;
-import com.marketplace.enums.SellerStatus;
 import com.marketplace.mapper.ProductMapper;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
@@ -44,7 +42,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   public PageResponse<ProductSummaryResponse> list(
       UUID sellerId, String q, Boolean active, int page, int size) {
     // Bước 1: seller phải được duyệt.
-    requireApprovedSeller(sellerId);
+    userRepository.getApprovedSeller(sellerId);
     // Bước 2: luôn bắt đầu bằng "chỉ product của seller này". sellerId lấy từ token nên không ai xem trộm
     // product của người khác được. Khác với danh sách công khai: KHÔNG lọc active, nên thấy cả product đã ẩn.
     Specification<Product> spec = soldBy(sellerId);
@@ -65,7 +63,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Override
   @Transactional(readOnly = true)
   public ProductResponse get(UUID sellerId, UUID productId) {
-    requireApprovedSeller(sellerId); // seller đã duyệt chưa?
+    userRepository.getApprovedSeller(sellerId); // seller đã duyệt chưa?
     // Không có product thì 404, của seller khác thì 403 (cùng quy tắc với sửa, xoá).
     return productMapper.toResponse(findOwnedProduct(sellerId, productId));
   }
@@ -75,7 +73,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Transactional
   public ProductResponse create(UUID sellerId, ProductCreateRequest request) {
     // Bước 1: seller phải được duyệt (APPROVED), nếu không ném 403.
-    User seller = requireApprovedSeller(sellerId);
+    User seller = userRepository.getApprovedSeller(sellerId);
     // Bước 2: category phải tồn tại, nếu không ném 400.
     Category category = findCategory(request.categoryId());
     // Bước 3: tạo product. sellerId lấy từ token chứ không nhận từ client, nên không ai tạo hộ người khác được.
@@ -100,7 +98,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Transactional
   public ProductResponse update(UUID sellerId, UUID productId, ProductUpdateRequest request) {
     // Bước 1: seller đã duyệt chưa? Bước 2: product có tồn tại và có phải của seller này không?
-    requireApprovedSeller(sellerId);
+    userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
     // Bước 3: chỉ đổi những trường client có gửi (khác null); trường không gửi giữ nguyên.
     if (request.name() != null) {
@@ -128,7 +126,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Override
   @Transactional
   public void delete(UUID sellerId, UUID productId) {
-    requireApprovedSeller(sellerId);
+    userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
     // Xoá mềm: chỉ ẩn khỏi danh sách công khai, KHÔNG xoá dòng dữ liệu.
     product.setActive(false);
@@ -137,7 +135,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Override
   @Transactional
   public ProductResponse updateStock(UUID sellerId, UUID productId, StockUpdateRequest request) {
-    requireApprovedSeller(sellerId);
+    userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
     product.setStock(request.stock());
     return productMapper.toResponse(product);
@@ -147,16 +145,6 @@ public class SellerProductServiceImpl implements SellerProductService {
    * Seller phải có role SELLER và trạng thái APPROVED. Phải tra DB vì token chỉ chứa role, không chứa
    * trạng thái duyệt: seller bị khoá sau khi nhận token vẫn bị chặn ở đây.
    */
-  private User requireApprovedSeller(UUID sellerId) {
-    User user =
-        userRepository
-            .findById(sellerId)
-            .orElseThrow(() -> BusinessException.forbidden("Seller account not found"));
-    if (user.getRole() != Role.SELLER || user.getSellerStatus() != SellerStatus.APPROVED) {
-      throw BusinessException.forbidden("Seller is not approved");
-    }
-    return user;
-  }
 
   /**
    * Tìm product và kiểm tra quyền sở hữu: không có product thì 404, có nhưng thuộc seller khác thì 403
