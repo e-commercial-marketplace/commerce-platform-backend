@@ -15,8 +15,11 @@ import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.CarrierRepository;
+import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.support.TestSupport;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +49,7 @@ class ShipmentApiTest {
   @Autowired private CarrierRepository carriers;
   @Autowired private ProductRepository products;
   @Autowired private JdbcTemplate jdbc;
+  @Autowired private OrderRepository orders;
 
   private User customer;
   private User sellerA;
@@ -179,6 +183,39 @@ class ShipmentApiTest {
     order(order).andExpect(jsonPath("$.data.status").value("PENDING")); // không DELIVERED
   }
 
+  // ---------- khách xác nhận đã nhận hàng (FR-ORD-13) ----------
+
+  @Test
+  void theCustomerClosesADeliveredOrderByConfirmingReceipt() throws Exception {
+    String body = checkout("COD", addToCart(phone, 1));
+    String order = orderIdOf(body);
+    String ship = idOf(create(sellerA, order, "SELF_DELIVERY", null, confirmedLine(body, sellerA)));
+    received(customer, order).andExpect(status().isBadRequest()); // chưa giao
+
+    deliver(sellerA, ship);
+    received(support.user(Role.CUSTOMER, null), order).andExpect(status().isNotFound()); // order người khác
+    received(sellerA, order).andExpect(status().isForbidden());
+    received(customer, order)
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("COMPLETED"))
+        .andExpect(jsonPath("$.data.paymentStatus").value("COMPLETED")); // COD đã thu lúc giao
+    received(customer, order).andExpect(status().isBadRequest()); // đã hoàn tất
+  }
+
+  @Test
+  void aDeliveredOrderCompletesAutomaticallyOnlyAfterTheWaitingPeriod() throws Exception {
+    String body = checkout("COD", addToCart(phone, 1));
+    String order = orderIdOf(body);
+    deliver(sellerA, idOf(create(sellerA, order, "SELF_DELIVERY", null, confirmedLine(body, sellerA))));
+
+    // Vừa giao xong: chưa quá hạn (mốc cắt 1 giờ trước) nên giữ DELIVERED.
+    orders.completeDeliveredBefore(Instant.now().minus(Duration.ofHours(1)));
+    order(order).andExpect(jsonPath("$.data.status").value("DELIVERED"));
+    // Giả lập đã quá hạn: mọi lần giao đều trước mốc cắt.
+    orders.completeDeliveredBefore(Instant.now().plus(Duration.ofMinutes(1)));
+    order(order).andExpect(jsonPath("$.data.status").value("COMPLETED"));
+  }
+
   // ---------- huỷ ----------
 
   @Test
@@ -257,6 +294,17 @@ class ShipmentApiTest {
         patch(SHIPMENTS + "/" + shipmentId + "/status"),
         seller,
         "{\"status\":\"" + status + "\",\"trackingCode\":" + tracking + "}");
+  }
+
+  private void deliver(User seller, String shipmentId) throws Exception {
+    move(seller, shipmentId, "PREPARING", null).andExpect(status().isOk());
+    move(seller, shipmentId, "SHIPPED", "TRACK").andExpect(status().isOk());
+    move(seller, shipmentId, "DELIVERED", null).andExpect(status().isOk());
+  }
+
+  private ResultActions received(User who, String orderId) throws Exception {
+    return mvc.perform(
+        patch("/api/v1/orders/" + orderId + "/received").header(HttpHeaders.AUTHORIZATION, support.bearer(who)));
   }
 
   private void confirm(User seller, String lineId) throws Exception {
