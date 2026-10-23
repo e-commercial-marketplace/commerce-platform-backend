@@ -10,6 +10,7 @@ import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.ProductRepository;
+import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.SellerOrderService;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
 
   private final OrderItemRepository orderItemRepository;
   private final OrderRepository orderRepository;
+  private final ShipmentOrderItemRepository shipmentOrderItemRepository;
   private final ProductRepository productRepository;
   private final UserRepository userRepository;
   private final OrderMapper orderMapper;
@@ -64,6 +66,10 @@ public class SellerOrderServiceImpl implements SellerOrderService {
     // Bước 1: seller đã duyệt, dòng hàng tồn tại (404) và là của seller này (403). Dòng được khoá.
     userRepository.getApprovedSeller(sellerId);
     OrderItem item = lockOwnedItem(sellerId, orderItemId);
+    // Dòng đã gán vào shipment thì huỷ qua shipment (PATCH .../status CANCELLED), không huỷ lẻ từng dòng.
+    if (shipmentOrderItemRepository.existsByOrderItemId(orderItemId)) {
+      throw BusinessException.cannotCancelAfterShipment("Cancel the shipment instead");
+    }
     // Bước 2: khoá order để hai seller huỷ hai dòng cùng order không tính tổng từ dữ liệu cũ.
     Order order =
         orderRepository

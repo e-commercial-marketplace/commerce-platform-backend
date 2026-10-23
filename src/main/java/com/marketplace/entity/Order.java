@@ -18,7 +18,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -73,6 +75,7 @@ public class Order {
   @OneToMany(mappedBy = "order")
   private List<Payment> payments = new ArrayList<>();
 
+  @BatchSize(size = 50)
   @OneToMany(mappedBy = "order")
   private List<Shipment> shipments = new ArrayList<>();
 
@@ -146,6 +149,32 @@ public class Order {
   /** Order trả trước qua VNPAY (có hạn 24 giờ); order COD thì thu tiền khi giao, không có hạn. */
   public boolean isPrepayment() {
     return payments.stream().anyMatch(Payment::isVnpay);
+  }
+
+  /**
+   * Gọi sau khi một shipment chuyển DELIVERED. Mọi dòng chưa huỷ đều đã nằm trong shipment DELIVERED thì
+   * order thành DELIVERED và payment COD đang chờ được ghi nhận đã thu (FR-SHIP-07, FR-PAY-02). Còn dòng
+   * chưa giao, hoặc có shipment FAILED/RETURNED, thì order giữ nguyên (FR-SHIP-10).
+   */
+  public void completeIfAllDelivered(Instant now) {
+    if (status != OrderStatus.PENDING && status != OrderStatus.PAID) {
+      return;
+    }
+    Set<UUID> delivered =
+        shipments.stream()
+            .filter(Shipment::isDelivered)
+            .flatMap(shipment -> shipment.orderItems().stream())
+            .map(OrderItem::getId)
+            .collect(Collectors.toSet());
+    boolean allDelivered =
+        items.stream()
+            .filter(item -> !item.isCancelled())
+            .allMatch(item -> delivered.contains(item.getId()));
+    if (allDelivered) {
+      status = OrderStatus.DELIVERED;
+      // VNPAY đã COMPLETED từ lúc trả tiền; chỉ COD còn chờ thu.
+      payments.stream().filter(payment -> !payment.isVnpay()).forEach(payment -> payment.complete(now));
+    }
   }
 
   public boolean isPending() {
