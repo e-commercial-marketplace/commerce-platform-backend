@@ -123,4 +123,17 @@ public class OrderServiceImpl implements OrderService {
         .map(order -> orderMapper.toResponse(order, null))
         .orElseThrow(() -> BusinessException.notFound("Order", orderId));
   }
+
+  @Override
+  @Transactional
+  public OrderResponse confirmReceived(UUID customerId, UUID orderId) {
+    // Khoá order (cùng khoá với các luồng đổi trạng thái khác); của customer khác thì 404 như không tồn tại.
+    Order order =
+        orderRepository
+            .findByIdForUpdate(orderId)
+            .filter(o -> o.getCustomer().getId().equals(customerId))
+            .orElseThrow(() -> BusinessException.notFound("Order", orderId));
+    order.markReceived(); // chỉ từ DELIVERED, ngược lại 400
+    return orderMapper.toResponse(order, null);
+  }
 }

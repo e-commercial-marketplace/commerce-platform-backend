@@ -86,6 +86,11 @@ public class BusinessException extends RuntimeException {
     return new BusinessException(ErrorCode.CANNOT_CANCEL_AFTER_PAYMENT, message);
   }
 
+  /** Lỗi 409 {@code CANNOT_CANCEL_AFTER_SHIPMENT}: dòng hàng đã gán vào shipment; phải huỷ shipment thay vì huỷ dòng. */
+  public static BusinessException cannotCancelAfterShipment(String message) {
+    return new BusinessException(ErrorCode.CANNOT_CANCEL_AFTER_SHIPMENT, message);
+  }
+
   /** @return loại lỗi; global handler lấy mã và HTTP status từ đây */
   public ErrorCode getErrorCode() {
     return errorCode;

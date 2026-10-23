@@ -19,6 +19,7 @@ public enum ErrorCode {
   CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Cart item not found"),
   ORDER_NOT_PAYABLE(HttpStatus.CONFLICT, "Order is not payable"),
   CANNOT_CANCEL_AFTER_PAYMENT(HttpStatus.CONFLICT, "Order is already paid"),
+  CANNOT_CANCEL_AFTER_SHIPMENT(HttpStatus.CONFLICT, "Order item is already in a shipment"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;

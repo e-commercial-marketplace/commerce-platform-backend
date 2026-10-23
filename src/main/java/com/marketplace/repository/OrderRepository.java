@@ -11,8 +11,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Truy vấn order; mọi truy vấn của customer đều lọc theo customerId lấy từ token. */
 public interface OrderRepository extends JpaRepository<Order, UUID> {
@@ -48,4 +50,19 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
           + " and not exists (select p from Payment p where p.order = o"
           + "   and p.status = com.marketplace.enums.PaymentStatus.COMPLETED)")
   List<UUID> findExpiredPrepaymentOrderIds(@Param("deadline") Instant deadline);
+
+  /**
+   * Tự hoàn tất các order DELIVERED mà không shipment nào được giao từ {@code cutoff} trở về sau (tức lần
+   * giao cuối đã quá hạn khách xác nhận). Một câu UPDATE duy nhất nên an toàn khi chạy song song với khách
+   * bấm xác nhận: cả hai chỉ đổi DELIVERED thành COMPLETED.
+   *
+   * @return số order vừa được hoàn tất
+   */
+  @Transactional
+  @Modifying
+  @Query(
+      "update Order o set o.status = com.marketplace.enums.OrderStatus.COMPLETED"
+          + " where o.status = com.marketplace.enums.OrderStatus.DELIVERED"
+          + " and not exists (select s from Shipment s where s.order = o and s.deliveredAt >= :cutoff)")
+  int completeDeliveredBefore(@Param("cutoff") Instant cutoff);
 }

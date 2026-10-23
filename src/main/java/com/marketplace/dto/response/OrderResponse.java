@@ -17,6 +17,7 @@ import java.util.UUID;
  * @param paymentUrl link thanh toán VNPAY có chữ ký, chỉ có ở response checkout VNPAY; COD và khi xem
  *     order thì {@code null} (link mới lấy qua {@code POST /payments/vnpay/create})
  * @param voucherCode luôn {@code null} cho tới khi voucher được làm ở Phase 8
+ * @param shipments các shipment của order (rỗng lúc checkout)
  */
 public record OrderResponse(
     UUID id,
@@ -30,4 +31,5 @@ public record OrderResponse(
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal discountAmount,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal totalAmount,
     String voucherCode,
+    List<ShipmentResponse> shipments,
     List<OrderItemResponse> items) {}
