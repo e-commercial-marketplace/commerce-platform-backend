@@ -52,13 +52,19 @@ public class SecurityConfig {
     "/actuator/health", "/actuator/info", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
   };
 
-  /** Đọc công khai (chỉ GET): catalog, review, trang shop. Dấu {@code *} khớp đúng một đoạn đường dẫn. */
+  /**
+   * Đọc công khai (chỉ GET): catalog, review, trang shop. Dấu {@code *} khớp đúng một đoạn đường dẫn.
+   * IPN và Return URL của VNPAY cũng công khai vì VNPAY và trình duyệt gọi tới không có token; chúng tự
+   * xác thực bằng chữ ký VNPAY.
+   */
   private static final String[] PUBLIC_GET = {
     API + "/products",
     API + "/products/*",
     API + "/products/*/reviews",
     API + "/categories",
-    API + "/sellers/*"
+    API + "/sellers/*",
+    API + "/payments/vnpay/ipn",
+    API + "/payments/vnpay/return"
   };
 
   /**
@@ -75,8 +81,10 @@ public class SecurityConfig {
     API + "/ai/ask"
   };
 
-  /** Chỉ customer: giỏ hàng, checkout và order. Seller, admin gọi vào nhận 403. */
-  private static final String[] CUSTOMER_ONLY = {API + "/cart/**", API + "/orders/**"};
+  /** Chỉ customer: giỏ hàng, checkout, order và thanh toán lại. Seller, admin gọi vào nhận 403. */
+  private static final String[] CUSTOMER_ONLY = {
+    API + "/cart/**", API + "/orders/**", API + "/payments/**"
+  };
 
   /** Chỉ seller. Trạng thái APPROVED không nằm trong token nên service kiểm tra thêm trong DB. */
   private static final String[] SELLER_ONLY = {API + "/seller/**"};

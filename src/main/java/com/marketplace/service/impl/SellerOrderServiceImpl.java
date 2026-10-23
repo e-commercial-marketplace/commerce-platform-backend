@@ -5,7 +5,6 @@ import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.response.OrderItemResponse;
 import com.marketplace.entity.Order;
 import com.marketplace.entity.OrderItem;
-import com.marketplace.entity.Payment;
 import com.marketplace.enums.OrderItemStatus;
 import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.OrderItemRepository;
@@ -23,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Xử lý đơn phía seller theo features/order/API_CONTRACT.md. Seller chỉ thấy và chỉ sửa dòng hàng của
  * mình. Huỷ một dòng nằm trong MỘT transaction: trả kho, tính lại tổng order và số tiền payment đang chờ;
- * huỷ hết dòng thì order CANCELLED và payment COD FAILED.
+ * huỷ hết dòng thì order CANCELLED và payment đang chờ FAILED. Order đã thanh toán trước thì không huỷ
+ * được.
  *
  * <p>Thứ tự khoá luôn là dòng hàng rồi tới order, nên các request chạy song song không khoá chéo nhau.
  */
@@ -69,18 +69,16 @@ public class SellerOrderServiceImpl implements SellerOrderService {
         orderRepository
             .findByIdForUpdate(item.getOrder().getId())
             .orElseThrow(() -> BusinessException.notFound("Order", item.getOrder().getId()));
-    // Bước 3: huỷ dòng (dòng đã huỷ thì 400, nên bước trả kho dưới đây chỉ chạy đúng một lần).
+    // Bước 3: khách đã thanh toán trước thì không huỷ được, vì chưa có quy trình hoàn tiền.
+    if (order.isPaid()) {
+      throw BusinessException.cannotCancelAfterPayment("The order is already paid");
+    }
+    // Bước 4: huỷ dòng (dòng đã huỷ thì 400, nên bước trả kho dưới đây chỉ chạy đúng một lần).
     item.cancel(reason);
     productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
-    // Bước 4: tính lại tổng từ các dòng còn lại; không còn dòng nào thì order chuyển CANCELLED.
+    // Bước 5: tính lại tổng và đồng bộ payment đang chờ (COD nhận tổng mới, VNPAY thành FAILED); không
+    // còn dòng nào thì order CANCELLED và mọi payment đang chờ FAILED.
     order.recalculateAfterCancellation();
-    // Bước 5: payment đang chờ nhận số tiền mới; order đã huỷ thì payment không còn thu được nên FAILED.
-    for (Payment payment : order.getPayments()) {
-      payment.updatePendingAmount(order.getTotalAmount());
-      if (order.isCancelled()) {
-        payment.markFailed();
-      }
-    }
     return orderMapper.toItem(item);
   }
 

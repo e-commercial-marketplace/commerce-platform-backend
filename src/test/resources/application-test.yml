@@ -15,3 +15,6 @@ app:
     secret: test-only-secret-key-change-me-please-32chars!
     access-expiration-ms: 900000
     refresh-expiration-ms: 604800000
+  vnpay:
+    tmn-code: TESTCODE
+    hash-secret: test-only-vnpay-hash-secret

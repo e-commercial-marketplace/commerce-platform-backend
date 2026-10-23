@@ -106,16 +106,54 @@ public class Order {
   }
 
   /**
-   * Gọi sau khi huỷ một dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để
-   * xem lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00.
+   * Gọi sau khi huỷ dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để xem
+   * lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00. Sau đó đồng bộ các payment đang chờ:
+   * COD nhận tổng mới, VNPAY chuyển FAILED (link cũ mang số tiền cũ); order đã huỷ thì mọi payment đang
+   * chờ đều FAILED vì không còn gì để thu.
    */
   public void recalculateAfterCancellation() {
     if (items.stream().allMatch(OrderItem::isCancelled)) {
       status = OrderStatus.CANCELLED;
       totalAmount = BigDecimal.ZERO.setScale(2);
-      return;
+    } else {
+      recalculateTotal();
     }
-    recalculateTotal();
+    for (Payment payment : payments) {
+      payment.updatePendingAmount(totalAmount);
+      if (isCancelled()) {
+        payment.markFailed();
+      }
+    }
+  }
+
+  /**
+   * Huỷ mọi dòng chưa huỷ (ví dụ quá hạn thanh toán trước) và trả về các dòng vừa huỷ, để service cộng
+   * trả kho cho đúng các dòng đó (dòng đã huỷ từ trước không bị cộng lần hai).
+   */
+  public List<OrderItem> cancelRemainingItems(String reason) {
+    List<OrderItem> cancelled = items.stream().filter(item -> !item.isCancelled()).toList();
+    cancelled.forEach(item -> item.cancel(reason));
+    return cancelled;
+  }
+
+  /** Thanh toán trước đã hoàn tất: PENDING -> PAID. Trạng thái khác giữ nguyên. */
+  public void markPaid() {
+    if (status == OrderStatus.PENDING) {
+      status = OrderStatus.PAID;
+    }
+  }
+
+  /** Order trả trước qua VNPAY (có hạn 24 giờ); order COD thì thu tiền khi giao, không có hạn. */
+  public boolean isPrepayment() {
+    return payments.stream().anyMatch(Payment::isVnpay);
+  }
+
+  public boolean isPending() {
+    return status == OrderStatus.PENDING;
+  }
+
+  public boolean isPaid() {
+    return status == OrderStatus.PAID;
   }
 
   public boolean isCancelled() {

@@ -13,7 +13,7 @@ import java.util.UUID;
  *
  * @param cartItemIds id các dòng trong giỏ của chính customer; không rỗng, không trùng (service kiểm)
  * @param shippingAddress địa chỉ giao hàng, được chụp lại vào order
- * @param paymentMethod hiện chỉ hỗ trợ COD; VNPAY bị từ chối cho tới phase thanh toán
+ * @param paymentMethod COD (thu tiền khi giao) hoặc VNPAY (thanh toán trước, response có link thanh toán)
  */
 public record CheckoutRequest(
     @NotEmpty List<@NotNull UUID> cartItemIds,

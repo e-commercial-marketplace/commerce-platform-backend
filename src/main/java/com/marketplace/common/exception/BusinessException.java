@@ -73,6 +73,19 @@ public class BusinessException extends RuntimeException {
     return new BusinessException(ErrorCode.FORBIDDEN, message);
   }
 
+  /**
+   * Lỗi 409 {@code ORDER_NOT_PAYABLE}: order không thể thanh toán VNPAY nữa (đã trả, đã huỷ, là order
+   * COD hoặc đã quá hạn 24 giờ).
+   */
+  public static BusinessException orderNotPayable(String message) {
+    return new BusinessException(ErrorCode.ORDER_NOT_PAYABLE, message);
+  }
+
+  /** Lỗi 409 {@code CANNOT_CANCEL_AFTER_PAYMENT}: order đã thanh toán trước, chưa có quy trình hoàn tiền. */
+  public static BusinessException cannotCancelAfterPayment(String message) {
+    return new BusinessException(ErrorCode.CANNOT_CANCEL_AFTER_PAYMENT, message);
+  }
+
   /** @return loại lỗi; global handler lấy mã và HTTP status từ đây */
   public ErrorCode getErrorCode() {
     return errorCode;

@@ -79,6 +79,16 @@ app:
     max-attempts: 5
     resend-cooldown-seconds: 60
     max-codes-per-hour: 5
+  vnpay:
+    # Lấy từ email VNPAY gửi khi đăng ký merchant sandbox (sandbox.vnpayment.vn/devreg). Không commit giá trị thật.
+    tmn-code: ${APP_VNPAY_TMN_CODE:}
+    hash-secret: ${APP_VNPAY_HASH_SECRET:}
+    pay-url: ${APP_VNPAY_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    # Trình duyệt quay về đây sau trang VNPAY; khi deploy đổi thành domain Render.
+    return-url: ${APP_VNPAY_RETURN_URL:http://localhost:8080/api/v1/payments/vnpay/return}
+    # Backend xử lý xong Return URL thì chuyển trình duyệt về địa chỉ này (deep link của app).
+    app-redirect-url: ${APP_VNPAY_APP_REDIRECT_URL:marketplace://payment-result}
+    expire-minutes: 15
 
 management:
   endpoints:

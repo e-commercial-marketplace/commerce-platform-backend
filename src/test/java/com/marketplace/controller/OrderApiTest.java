@@ -196,8 +196,7 @@ class OrderApiTest {
       "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"   \",\"paymentMethod\":\"COD\"}", // địa chỉ trống
       "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"" + "x".repeat(1001) + "\",\"paymentMethod\":\"COD\"}",
       "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"A\"}", // thiếu paymentMethod
-      "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"A\",\"paymentMethod\":\"CASH\"}", // không tồn tại
-      "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"A\",\"paymentMethod\":\"VNPAY\"}" // chưa hỗ trợ
+      "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"A\",\"paymentMethod\":\"CASH\"}" // không tồn tại
     };
     for (String body : invalidBodies) {
       support.send(mvc, post(ORDERS), customer, body)

@@ -17,6 +17,8 @@ public enum ErrorCode {
   PRODUCT_INACTIVE(HttpStatus.BAD_REQUEST, "Product is no longer available"),
   INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Not enough stock"),
   CART_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "Cart item not found"),
+  ORDER_NOT_PAYABLE(HttpStatus.CONFLICT, "Order is not payable"),
+  CANNOT_CANCEL_AFTER_PAYMENT(HttpStatus.CONFLICT, "Order is already paid"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;

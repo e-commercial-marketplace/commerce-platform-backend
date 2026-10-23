@@ -9,8 +9,12 @@ import java.util.UUID;
 /** Checkout và tra cứu order của customer đang đăng nhập. */
 public interface OrderService {
 
-  /** Tạo một order từ các dòng giỏ được chọn, trong một transaction duy nhất. */
-  OrderResponse checkout(UUID customerId, CheckoutRequest request);
+  /**
+   * Tạo một order từ các dòng giỏ được chọn, trong một transaction duy nhất.
+   *
+   * @param clientIp IP của khách, gửi kèm cho VNPAY khi thanh toán qua VNPAY
+   */
+  OrderResponse checkout(UUID customerId, CheckoutRequest request, String clientIp);
 
   /** Order của customer, mới nhất trước. */
   PageResponse<OrderSummaryResponse> listOrders(UUID customerId, int page, int size);

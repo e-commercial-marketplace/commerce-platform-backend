@@ -80,10 +80,16 @@ public class OrderItem {
     return unitPrice.multiply(BigDecimal.valueOf(quantity));
   }
 
-  /** Seller xác nhận sẽ xử lý dòng này. Chỉ đi được từ PENDING, ngược lại 400. */
+  /**
+   * Seller xác nhận sẽ xử lý dòng này. Chỉ đi được từ PENDING, ngược lại 400. Order trả trước qua VNPAY
+   * chỉ được xác nhận khi đã PAID (FR-FUL-05), để seller không chuẩn bị hàng cho đơn khách chưa trả tiền.
+   */
   public void confirm() {
     if (status != OrderItemStatus.PENDING) {
       throw BusinessException.validation("Only a PENDING order item can be confirmed");
+    }
+    if (order.isPrepayment() && !order.isPaid()) {
+      throw BusinessException.validation("The order is not paid yet");
     }
     status = OrderItemStatus.CONFIRMED;
   }

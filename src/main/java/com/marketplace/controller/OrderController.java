@@ -2,11 +2,13 @@ package com.marketplace.controller;
 
 import com.marketplace.common.response.ApiResponse;
 import com.marketplace.common.response.PageResponse;
+import com.marketplace.common.util.ClientIp;
 import com.marketplace.dto.request.CheckoutRequest;
 import com.marketplace.dto.response.OrderResponse;
 import com.marketplace.dto.response.OrderSummaryResponse;
 import com.marketplace.security.AuthUser;
 import com.marketplace.service.OrderService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -36,12 +38,14 @@ public class OrderController {
 
   private final OrderService orderService;
 
-  // 201 Created: checkout tạo ra một order mới.
+  // 201 Created: checkout tạo ra một order mới. IP của khách cần cho VNPAY (vnp_IpAddr).
   @PostMapping
   public ResponseEntity<ApiResponse<OrderResponse>> checkout(
-      @AuthenticationPrincipal AuthUser me, @Valid @RequestBody CheckoutRequest request) {
+      @AuthenticationPrincipal AuthUser me,
+      @Valid @RequestBody CheckoutRequest request,
+      HttpServletRequest http) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.ok(orderService.checkout(me.id(), request)));
+        .body(ApiResponse.ok(orderService.checkout(me.id(), request, ClientIp.of(http))));
   }
 
   @GetMapping

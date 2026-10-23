@@ -2,6 +2,8 @@ package com.marketplace.repository;
 
 import com.marketplace.entity.Order;
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -32,4 +34,18 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select o from Order o where o.id = :id")
   Optional<Order> findByIdForUpdate(@Param("id") UUID id);
+
+  /**
+   * Id các order trả trước (có lần thử VNPAY) vẫn PENDING, tạo trước {@code deadline} và chưa có payment
+   * COMPLETED: đây là các order quá hạn 24 giờ cần huỷ. Chỉ lấy id; mỗi order được khoá và kiểm lại
+   * trong transaction riêng lúc huỷ.
+   */
+  @Query(
+      "select o.id from Order o where o.status = com.marketplace.enums.OrderStatus.PENDING"
+          + " and o.createdAt < :deadline"
+          + " and exists (select p from Payment p where p.order = o"
+          + "   and p.method = com.marketplace.enums.PaymentMethod.VNPAY)"
+          + " and not exists (select p from Payment p where p.order = o"
+          + "   and p.status = com.marketplace.enums.PaymentStatus.COMPLETED)")
+  List<UUID> findExpiredPrepaymentOrderIds(@Param("deadline") Instant deadline);
 }
