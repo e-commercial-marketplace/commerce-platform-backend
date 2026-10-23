@@ -63,14 +63,54 @@ public class Payment {
     return payment;
   }
 
+  /**
+   * Một lần thử VNPAY đang chờ khách trả tiền, số tiền bằng tổng hiện tại của order.
+   *
+   * @param transactionId mã tham chiếu gửi VNPAY (vnp_TxnRef), duy nhất cho mỗi lần thử
+   */
+  public static Payment pendingVnpay(Order order, String transactionId) {
+    Payment payment = new Payment();
+    payment.order = order;
+    payment.method = PaymentMethod.VNPAY;
+    payment.status = PaymentStatus.PENDING;
+    payment.amount = order.getTotalAmount();
+    payment.transactionId = transactionId;
+    return payment;
+  }
+
   public boolean isPending() {
     return status == PaymentStatus.PENDING;
   }
 
-  /** Cập nhật số tiền theo tổng mới của order; chỉ áp dụng khi payment còn chờ. */
+  public boolean isVnpay() {
+    return method == PaymentMethod.VNPAY;
+  }
+
+  public boolean isCompleted() {
+    return status == PaymentStatus.COMPLETED;
+  }
+
+  /**
+   * Order đổi tổng tiền (một dòng bị huỷ) khi payment còn chờ. COD: nhận số tiền mới, vì thu tiền lúc
+   * giao. VNPAY: link thanh toán đã gửi mang số tiền cũ, nên lần thử này hết dùng được (FAILED); khách
+   * thanh toán lại với số tiền mới.
+   */
   public void updatePendingAmount(BigDecimal newAmount) {
-    if (isPending()) {
+    if (!isPending()) {
+      return;
+    }
+    if (isVnpay()) {
+      status = PaymentStatus.FAILED;
+    } else {
       amount = newAmount;
+    }
+  }
+
+  /** VNPAY xác nhận đã trả tiền. Chỉ đi được từ PENDING; service kiểm tra trước khi gọi. */
+  public void complete(Instant now) {
+    if (isPending()) {
+      status = PaymentStatus.COMPLETED;
+      paidAt = now;
     }
   }
 
