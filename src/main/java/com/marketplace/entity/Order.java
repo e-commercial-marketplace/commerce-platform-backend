@@ -1,5 +1,6 @@
 package com.marketplace.entity;
 
+import com.marketplace.common.exception.BusinessException;
 import com.marketplace.enums.OrderStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -175,6 +176,14 @@ public class Order {
       // VNPAY đã COMPLETED từ lúc trả tiền; chỉ COD còn chờ thu.
       payments.stream().filter(payment -> !payment.isVnpay()).forEach(payment -> payment.complete(now));
     }
+  }
+
+  /** Khách xác nhận đã nhận hàng: DELIVERED -> COMPLETED. Trạng thái khác thì 400. */
+  public void markReceived() {
+    if (status != OrderStatus.DELIVERED) {
+      throw BusinessException.validation("Only a DELIVERED order can be confirmed as received");
+    }
+    status = OrderStatus.COMPLETED;
   }
 
   public boolean isPending() {
