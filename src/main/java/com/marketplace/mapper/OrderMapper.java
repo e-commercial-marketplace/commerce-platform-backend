@@ -14,7 +14,7 @@ import org.mapstruct.Mapping;
  * Đổi order sang response. Trạng thái và phương thức thanh toán lấy từ lần thanh toán hiện tại của
  * order (xem {@link #currentPayment}).
  */
-@Mapper(componentModel = "spring")
+@Mapper(componentModel = "spring", uses = ShipmentMapper.class)
 public interface OrderMapper {
 
   // paymentUrl chỉ có ở response checkout VNPAY; xem order thì truyền null.
