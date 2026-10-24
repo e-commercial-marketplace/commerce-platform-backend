@@ -90,7 +90,9 @@ public class SellerProductServiceImpl implements SellerProductService {
     if (Boolean.FALSE.equals(request.active())) {
       product.setActive(false);
     }
-    // Bước 5: lưu rồi trả về dạng response.
+    // Bước 5: product đang bán phải có ảnh.
+    requireImageWhenActive(product);
+    // Bước 6: lưu rồi trả về dạng response.
     return productMapper.toResponse(productRepository.save(product));
   }
 
@@ -119,6 +121,8 @@ public class SellerProductServiceImpl implements SellerProductService {
     if (request.active() != null) {
       product.setActive(request.active()); // đặt true để bán lại một product đã ẩn
     }
+    // Bước 4: sau khi sửa, product đang bán vẫn phải có ảnh (lỗi thì cả giao dịch hoàn tác, không ghi gì).
+    requireImageWhenActive(product);
     // Không cần gọi save(): product đang được Hibernate theo dõi, kết thúc giao dịch sẽ tự ghi thay đổi.
     return productMapper.toResponse(product);
   }
@@ -166,5 +170,16 @@ public class SellerProductServiceImpl implements SellerProductService {
     return categoryRepository
         .findById(categoryId)
         .orElseThrow(() -> BusinessException.validation("categoryId: unknown category"));
+  }
+
+  /**
+   * Product đang bán phải có ảnh không rỗng (contract catalog; DB cũng có ràng buộc
+   * ck_products_active_has_image). Kiểm tra ở đây để trả 400 rõ ràng thay vì để DB ném lỗi thành 500.
+   * Product đã ẩn thì không cần ảnh.
+   */
+  private static void requireImageWhenActive(Product product) {
+    if (product.isActive() && (product.getImageUrl() == null || product.getImageUrl().isBlank())) {
+      throw BusinessException.validation("An active product must have an imageUrl");
+    }
   }
 }

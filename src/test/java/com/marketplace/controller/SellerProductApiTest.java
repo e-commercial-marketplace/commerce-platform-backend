@@ -204,6 +204,33 @@ class SellerProductApiTest {
         .andExpect(status().isNotFound());
   }
 
+  // ---------- sản phẩm đang bán phải có ảnh ----------
+
+  @Test
+  void anActiveProductNeedsAnImageButAHiddenOneDoesNot() throws Exception {
+    String noImage = "{\"name\":\"NoImage\",\"price\":\"10.00\",\"stock\":1,\"categoryId\":\"%s\"%s}";
+    String cat = category.getId().toString();
+
+    // Đang bán (mặc định) mà thiếu ảnh hoặc ảnh rỗng: 400, không tạo gì.
+    create(seller, noImage.formatted(cat, "")).andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    create(seller, noImage.formatted(cat, ",\"imageUrl\":\"   \"")).andExpect(status().isBadRequest());
+
+    // Tạo ở trạng thái ẩn thì không cần ảnh.
+    String id = idOf(create(seller, noImage.formatted(cat, ",\"active\":false")).andExpect(status().isCreated()));
+
+    // Bật bán lại khi chưa có ảnh: 400. Gửi kèm ảnh thì được.
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"active\":true}").andExpect(status().isBadRequest());
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"active\":true,\"imageUrl\":\"https://example.com/x.jpg\"}")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.active").value(true));
+
+    // Xoá ảnh của product đang bán (ảnh rỗng): 400, product giữ nguyên ảnh cũ.
+    support.send(mvc, patch(BASE + "/" + id), seller, "{\"imageUrl\":\"\"}").andExpect(status().isBadRequest());
+    assertThat(products.findById(UUID.fromString(id)).orElseThrow().getImageUrl())
+        .isEqualTo("https://example.com/x.jpg");
+  }
+
   // ---------- sửa một phần ----------
 
   @Test
@@ -393,9 +420,10 @@ class SellerProductApiTest {
     return support.product(owner, category, name, "10.00", stock);
   }
 
-  /** Dựng JSON tạo product; {@code active == null} thì bỏ trường active. */
+  /** Dựng JSON tạo product (luôn kèm ảnh); {@code active == null} thì bỏ trường active. */
   private static String body(String name, String price, String stock, String categoryId, String active) {
-    return "{\"name\":\"%s\",\"description\":\"d\",\"price\":\"%s\",\"stock\":%s,\"categoryId\":\"%s\"%s}"
+    return ("{\"name\":\"%s\",\"description\":\"d\",\"imageUrl\":\"https://example.com/p.jpg\","
+            + "\"price\":\"%s\",\"stock\":%s,\"categoryId\":\"%s\"%s}")
         .formatted(name, price, stock, categoryId, active == null ? "" : ",\"active\":" + active);
   }
 

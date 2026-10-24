@@ -48,9 +48,13 @@ public class TestSupport {
     return categories.save(Category.create("Cat-" + UUID.randomUUID()));
   }
 
-  /** Tạo và lưu một product đang bán của {@code seller}; {@code price} dạng chuỗi như {@code "59.00"}. */
+  /**
+   * Tạo và lưu một product đang bán của {@code seller}; {@code price} dạng chuỗi như {@code "59.00"}. Có ảnh,
+   * vì product đang bán bắt buộc có ảnh (giống ràng buộc trên Postgres thật).
+   */
   public Product product(User seller, Category category, String name, String price, int stock) {
-    return products.save(Product.create(name, "d", null, new BigDecimal(price), stock, category, seller));
+    return products.save(
+        Product.create(name, "d", "https://example.com/p.jpg", new BigDecimal(price), stock, category, seller));
   }
 
   /** Tạo và lưu một người dùng với email ngẫu nhiên (tránh trùng giữa các test trong cùng H2). */
