@@ -311,7 +311,7 @@ class AdminUserApiTest {
     User seller = support.user(Role.SELLER, SellerStatus.PENDING);
     Category category = support.category();
     String product =
-        "{\"name\":\"P\",\"description\":\"d\",\"price\":\"10.00\",\"stock\":1,\"categoryId\":\""
+        "{\"name\":\"P\",\"description\":\"d\",\"imageUrl\":\"https://example.com/p.jpg\",\"price\":\"10.00\",\"stock\":1,\"categoryId\":\""
             + category.getId()
             + "\"}";
 
