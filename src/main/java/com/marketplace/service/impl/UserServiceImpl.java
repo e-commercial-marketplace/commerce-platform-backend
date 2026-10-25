@@ -1,6 +1,7 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.util.VietnamesePhone;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.request.UserProfileUpdateRequest;
 import com.marketplace.dto.response.UserProfileResponse;
 import com.marketplace.entity.User;
@@ -11,6 +12,7 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +31,8 @@ public class UserServiceImpl implements UserService {
 
   @Override
   @Transactional
+  // Tên shop là tên seller: đổi tên thì xoá cache trang shop (user không phải seller thì không có cache).
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#userId")
   public UserProfileResponse updateProfile(UUID userId, UserProfileUpdateRequest request) {
     // Bước 1: user lấy theo id trong token, không bao giờ theo dữ liệu client gửi.
     User user = userRepository.getRequired(userId);

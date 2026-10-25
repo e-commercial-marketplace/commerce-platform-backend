@@ -1,6 +1,7 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.request.CategoryRequest;
 import com.marketplace.dto.response.CategorySummaryResponse;
 import com.marketplace.entity.Category;
@@ -11,6 +12,8 @@ import com.marketplace.service.CategoryService;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,12 +28,15 @@ public class CategoryServiceImpl implements CategoryService {
 
   @Override
   @Transactional(readOnly = true) // chỉ đọc nên khai báo readOnly để nhẹ hơn
+  @Cacheable(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
   public List<CategorySummaryResponse> listAll() {
     return categoryMapper.toSummaries(categoryRepository.findAllByOrderByNameAsc());
   }
 
   @Override
   @Transactional
+  // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
+  @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
   public CategorySummaryResponse create(CategoryRequest request) {
     // Bước 1: bỏ khoảng trắng hai đầu, vì "Electronics " và "Electronics" là cùng một tên.
     String name = request.name().trim();
@@ -48,6 +54,8 @@ public class CategoryServiceImpl implements CategoryService {
 
   @Override
   @Transactional
+  // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
+  @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
   public CategorySummaryResponse rename(UUID id, CategoryRequest request) {
     // Bước 1: category phải tồn tại, nếu không 404.
     Category category = findCategory(id);
@@ -67,6 +75,8 @@ public class CategoryServiceImpl implements CategoryService {
 
   @Override
   @Transactional
+  // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
+  @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
   public void delete(UUID id) {
     Category category = findCategory(id);
     // Category còn product (kể cả product đã ẩn) thì không được xoá, vì product còn tham chiếu tới nó.

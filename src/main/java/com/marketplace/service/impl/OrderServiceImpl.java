@@ -20,6 +20,7 @@ import com.marketplace.enums.OrderStatus;
 import com.marketplace.enums.PaymentMethod;
 import com.marketplace.enums.ShipmentStatus;
 import com.marketplace.mapper.OrderMapper;
+import com.marketplace.repository.CartCache;
 import com.marketplace.repository.CartItemRepository;
 import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.ProductRepository;
@@ -64,6 +65,7 @@ public class OrderServiceImpl implements OrderService {
 
   private final UserRepository userRepository;
   private final CartItemRepository cartItemRepository;
+  private final CartCache cartCache;
   private final ProductRepository productRepository;
   private final OrderRepository orderRepository;
   private final PaymentService paymentService;
@@ -139,6 +141,7 @@ public class OrderServiceImpl implements OrderService {
 
     // Bước 7: xoá các dòng đã mua; các dòng không chọn vẫn ở lại giỏ.
     cartItemRepository.deleteAll(lines);
+    cartCache.evictAfterCommit(customerId); // bản sao giỏ trong Redis cũ rồi; xoá sau khi checkout commit
     return orderMapper.toResponse(order, paymentUrl);
   }
 

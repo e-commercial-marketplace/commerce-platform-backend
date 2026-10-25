@@ -1,6 +1,7 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.common.exception.BusinessException;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.response.SellerShopResponse;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
@@ -10,6 +11,7 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.SellerShopService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,7 @@ public class SellerShopServiceImpl implements SellerShopService {
 
   @Override
   @Transactional(readOnly = true) // chỉ đọc nên khai báo readOnly
+  @Cacheable(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
   public SellerShopResponse getShop(UUID sellerId) {
     // Bước 1: người dùng phải tồn tại, là SELLER và đã APPROVED. Mọi trường hợp còn lại đều là 404 giống nhau,
     // nên người ngoài không biết được "id này là customer", "seller chưa duyệt" hay "không tồn tại".

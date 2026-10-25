@@ -1,4 +1,5 @@
-# Chạy toàn bộ ở local: PostgreSQL 16 (pgvector) + backend API, KHÔNG đụng tới Supabase.
+# Chạy toàn bộ ở local: PostgreSQL 16 (pgvector) + Redis (cache giỏ hàng) + backend API, KHÔNG đụng tới
+# Supabase.
 #   docker compose up -d --build   -> dựng image backend và chạy cả 2 service
 #   docker compose logs -f backend -> xem log API (Flyway migrate, lỗi khởi động...)
 #   docker compose down            -> dừng, GIỮ dữ liệu DB
@@ -29,6 +30,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # Cache đọc giỏ hàng. Không mở cổng ra máy: chỉ backend trong mạng compose gọi tới (redis://redis:6379).
+  # Không lưu xuống đĩa, giống Render Key Value bản free: mất dữ liệu cache thì đọc lại từ PostgreSQL.
+  redis:
+    image: redis:7.4-alpine
+    container_name: marketplace-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -40,6 +54,9 @@ services:
       postgres:
         # Chờ DB nhận kết nối rồi mới start API để Flyway migrate không bị race.
         condition: service_healthy
+      # Redis là tuỳ chọn: chỉ cần container đã start, backend vẫn chạy được nếu Redis lỗi.
+      redis:
+        condition: service_started
     # Nạp mọi biến trong .env vào container (VNPAY, mail, admin, CORS...). required: false để thiếu .env
     # vẫn chạy được.
     env_file:
@@ -53,6 +70,10 @@ services:
       DB_PASSWORD: marketplace
       # Giá trị trong .env được ưu tiên; không có thì dùng secret chỉ dành cho local.
       APP_JWT_SECRET: ${APP_JWT_SECRET:-dev-only-secret-key-change-me-please-32chars!}
+      # Luôn dùng Redis của compose, dù REDIS_URL trong .env trỏ tới Render (địa chỉ nội bộ của Render
+      # không gọi được từ máy local).
+      REDIS_URL: redis://redis:6379
+      APP_CACHE_ENABLED: ${APP_CACHE_ENABLED:-true}
     ports:
       - "127.0.0.1:8080:8080"
 
