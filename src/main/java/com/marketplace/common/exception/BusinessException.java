@@ -91,6 +91,26 @@ public class BusinessException extends RuntimeException {
     return new BusinessException(ErrorCode.CANNOT_CANCEL_AFTER_SHIPMENT, message);
   }
 
+  /** Lỗi 409 {@code VOUCHER_EXPIRED}: voucher chưa tới ngày bắt đầu hoặc đã hết hạn. */
+  public static BusinessException voucherExpired(String message) {
+    return new BusinessException(ErrorCode.VOUCHER_EXPIRED, message);
+  }
+
+  /** Lỗi 409 {@code VOUCHER_EXHAUSTED}: voucher đã dùng hết lượt. */
+  public static BusinessException voucherExhausted(String message) {
+    return new BusinessException(ErrorCode.VOUCHER_EXHAUSTED, message);
+  }
+
+  /** Lỗi 403 {@code REVIEW_NOT_ELIGIBLE}: chưa có order COMPLETED chứa product này. */
+  public static BusinessException reviewNotEligible(String message) {
+    return new BusinessException(ErrorCode.REVIEW_NOT_ELIGIBLE, message);
+  }
+
+  /** Lỗi 409 {@code REVIEW_ALREADY_EXISTS}: customer đã đánh giá product này. */
+  public static BusinessException reviewAlreadyExists(String message) {
+    return new BusinessException(ErrorCode.REVIEW_ALREADY_EXISTS, message);
+  }
+
   /** @return loại lỗi; global handler lấy mã và HTTP status từ đây */
   public ErrorCode getErrorCode() {
     return errorCode;

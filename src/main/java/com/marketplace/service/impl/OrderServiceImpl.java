@@ -21,6 +21,7 @@ import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
 import com.marketplace.service.PaymentService;
+import com.marketplace.service.VoucherService;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -38,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
  * từng dòng hàng, trừ tồn kho có điều kiện, tạo payment chờ (COD chờ thu, hoặc lần thử VNPAY đầu tiên kèm
  * link thanh toán) và xoá các dòng đã mua khỏi giỏ.
  * Tất cả nằm trong MỘT transaction: lỗi ở bất kỳ bước nào thì hoàn tác hết (không order, kho và giỏ
- * giữ nguyên). Voucher làm ở Phase 8 nên giảm giá luôn 0.00.
+ * giữ nguyên). Mã voucher (nếu có) được trừ lượt và áp giảm giá trong cùng transaction.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
   private final OrderRepository orderRepository;
   private final PaymentRepository paymentRepository;
   private final PaymentService paymentService;
+  private final VoucherService voucherService;
   private final OrderMapper orderMapper;
   private final TimeProvider timeProvider;
 
@@ -90,6 +92,11 @@ public class OrderServiceImpl implements OrderService {
     for (UUID id : request.cartItemIds()) {
       CartItem line = byId.get(id);
       order.addItem(line.getProduct(), line.getQuantity());
+    }
+    // Có mã voucher: trừ một lượt (hết hạn, hết lượt hay không có thì lỗi và cả checkout hoàn tác) rồi áp
+    // giảm giá, TRƯỚC khi tạo payment để COD và VNPAY nhận đúng tổng sau giảm.
+    if (request.voucherCode() != null && !request.voucherCode().isBlank()) {
+      order.applyVoucher(voucherService.consume(request.voucherCode(), timeProvider.now()));
     }
     orderRepository.save(order); // lưu kèm các dòng hàng (cascade PERSIST)
 

@@ -7,7 +7,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
@@ -15,15 +14,16 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
-/** Customer review; purchase and delivery eligibility is checked by the review service. */
+/**
+ * Đánh giá của customer cho một product (mỗi customer tối đa một đánh giá cho mỗi product, có ràng buộc
+ * unique ở DB). Điều kiện được đánh giá (order COMPLETED chứa product) do ReviewService kiểm.
+ */
 @Entity
 @Table(name = "reviews", uniqueConstraints = @UniqueConstraint(
     name = "uq_reviews_user_product", columnNames = {"user_id", "product_id"}))
 @Getter
-@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Review {
 
@@ -49,8 +49,13 @@ public class Review {
   @JoinColumn(name = "product_id", nullable = false)
   private Product product;
 
-  @PrePersist
-  void onCreate() {
-    if (createdAt == null) createdAt = Instant.now();
+  public static Review create(User user, Product product, int rating, String comment, Instant now) {
+    Review review = new Review();
+    review.user = user;
+    review.product = product;
+    review.rating = rating;
+    review.comment = comment;
+    review.createdAt = now;
+    return review;
   }
 }

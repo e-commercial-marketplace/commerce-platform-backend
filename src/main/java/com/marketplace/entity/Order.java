@@ -16,6 +16,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -86,8 +87,8 @@ public class Order {
   }
 
   /**
-   * Mở một order mới ở trạng thái PENDING. Phí ship cố định 0.00 và chưa có voucher (voucher làm ở
-   * Phase 8), nên giảm giá cũng là 0.00. Tổng tiền tăng dần khi thêm từng dòng hàng.
+   * Mở một order mới ở trạng thái PENDING. Phí ship cố định 0.00; giảm giá 0.00 cho tới khi áp voucher
+   * ({@link #applyVoucher}). Tổng tiền tăng dần khi thêm từng dòng hàng.
    */
   public static Order place(User customer, String shippingAddress, Instant now) {
     Order order = new Order();
@@ -118,6 +119,7 @@ public class Order {
   public void recalculateAfterCancellation() {
     if (items.stream().allMatch(OrderItem::isCancelled)) {
       status = OrderStatus.CANCELLED;
+      discountAmount = BigDecimal.ZERO.setScale(2);
       totalAmount = BigDecimal.ZERO.setScale(2);
     } else {
       recalculateTotal();
@@ -198,14 +200,28 @@ public class Order {
     return status == OrderStatus.CANCELLED;
   }
 
-  /** Tổng = cộng (giá x số lượng) các dòng chưa huỷ - giảm giá + phí ship. */
+  /** Áp voucher (đã được trừ lượt dùng) và tính lại giảm giá, tổng tiền. Mỗi order tối đa một voucher. */
+  public void applyVoucher(Voucher voucher) {
+    this.voucher = voucher;
+    recalculateTotal();
+  }
+
+  /**
+   * Tạm tính = cộng (giá x số lượng) các dòng chưa huỷ. Giảm giá = % của voucher trên tạm tính, làm tròn 2
+   * chữ số; tính lại mỗi lần để huỷ bớt dòng không làm tổng âm. Tổng = tạm tính - giảm giá + phí ship.
+   */
   private void recalculateTotal() {
-    totalAmount =
+    BigDecimal subtotal =
         items.stream()
             .filter(item -> !item.isCancelled())
             .map(OrderItem::lineTotal)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .subtract(discountAmount)
-            .add(shippingFee);
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    discountAmount =
+        voucher == null
+            ? BigDecimal.ZERO.setScale(2)
+            : subtotal
+                .multiply(BigDecimal.valueOf(voucher.getDiscountPercent()))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    totalAmount = subtotal.subtract(discountAmount).add(shippingFee);
   }
 }

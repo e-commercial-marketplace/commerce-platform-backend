@@ -14,8 +14,10 @@ import java.util.UUID;
  * @param cartItemIds id các dòng trong giỏ của chính customer; không rỗng, không trùng (service kiểm)
  * @param shippingAddress địa chỉ giao hàng, được chụp lại vào order
  * @param paymentMethod COD (thu tiền khi giao) hoặc VNPAY (thanh toán trước, response có link thanh toán)
+ * @param voucherCode tuỳ chọn; mã voucher không phân biệt hoa thường, trống hoặc không gửi là không dùng
  */
 public record CheckoutRequest(
     @NotEmpty List<@NotNull UUID> cartItemIds,
     @NotBlank @Size(max = 1000) String shippingAddress,
-    @NotNull PaymentMethod paymentMethod) {}
+    @NotNull PaymentMethod paymentMethod,
+    @Size(max = 64) String voucherCode) {}

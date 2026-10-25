@@ -20,6 +20,10 @@ public enum ErrorCode {
   ORDER_NOT_PAYABLE(HttpStatus.CONFLICT, "Order is not payable"),
   CANNOT_CANCEL_AFTER_PAYMENT(HttpStatus.CONFLICT, "Order is already paid"),
   CANNOT_CANCEL_AFTER_SHIPMENT(HttpStatus.CONFLICT, "Order item is already in a shipment"),
+  VOUCHER_EXPIRED(HttpStatus.CONFLICT, "Voucher is not valid at this time"),
+  VOUCHER_EXHAUSTED(HttpStatus.CONFLICT, "Voucher has no use left"),
+  REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "You can review a product only after a completed order"),
+  REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "You already reviewed this product"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;
