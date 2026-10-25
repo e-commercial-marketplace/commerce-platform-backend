@@ -37,6 +37,16 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
+  # Redis chỉ làm cache đọc (giỏ hàng, danh mục, trang shop), bật bằng app.cache.enabled. Không có Redis
+  # app vẫn chạy (đọc PostgreSQL), nên timeout ngắn để một Redis chết không làm request chậm theo.
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      connect-timeout: 500ms
+      timeout: 500ms
+      # Chỉ dùng StringRedisTemplate; không quét repository Redis để khỏi lẫn với repository JPA.
+      repositories:
+        enabled: false
 
 ---
 # Chỉ nạp .env khi KHÔNG chạy test: test phải cố định theo src/test/resources/application-test.yml
@@ -79,6 +89,10 @@ app:
     max-attempts: 5
     resend-cooldown-seconds: 60
     max-codes-per-hour: 5
+  cache:
+    # false (mặc định): không dùng Redis, mọi dữ liệu đọc thẳng PostgreSQL. Bật khi đã có REDIS_URL.
+    # Một cờ cho cả cache giỏ hàng và cache danh mục/trang shop (architecture §5.4).
+    enabled: ${APP_CACHE_ENABLED:false}
   vnpay:
     # Lấy từ email VNPAY gửi khi đăng ký merchant sandbox (sandbox.vnpayment.vn/devreg). Không commit giá trị thật.
     tmn-code: ${APP_VNPAY_TMN_CODE:}
@@ -102,6 +116,9 @@ management:
     # Không để SMTP quyết định app có "khoẻ" hay không: email chỉ gửi theo kiểu cố gắng, lỗi gửi được xử lý
     # riêng. Nếu bật, mất kết nối Gmail sẽ làm /actuator/health trả 503 và Render coi deploy là hỏng.
     mail:
+      enabled: false
+    # Redis chỉ là cache tuỳ chọn: mất Redis không được làm /actuator/health trả 503 (Render coi deploy hỏng).
+    redis:
       enabled: false
 
 # Không lộ chi tiết lỗi framework ra API: mọi lỗi nghiệp vụ đi qua GlobalExceptionHandler

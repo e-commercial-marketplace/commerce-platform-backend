@@ -4,6 +4,7 @@ import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.common.util.Emails;
 import com.marketplace.common.util.Pages;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.request.AdminUserCreateRequest;
 import com.marketplace.dto.request.AdminUserUpdateRequest;
 import com.marketplace.dto.response.UserResponse;
@@ -18,6 +19,7 @@ import com.marketplace.service.RefreshTokenService;
 import com.marketplace.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -82,6 +84,8 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional
+  // Tên, role hay trạng thái duyệt đổi thì trang shop đổi (hoặc thành 404): xoá cache sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#id")
   public UserResponse update(UUID id, AdminUserUpdateRequest request, UUID actorId) {
     User user = userRepository.getRequired(id);
     Role role = request.role() != null ? request.role() : user.getRole();
@@ -117,6 +121,8 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional
+  // Tên, role hay trạng thái duyệt đổi thì trang shop đổi (hoặc thành 404): xoá cache sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#id")
   public UserResponse approveSeller(UUID id) {
     User seller = findSeller(id);
     if (seller.getSellerStatus() == SellerStatus.APPROVED) {
@@ -128,6 +134,8 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional
+  // Tên, role hay trạng thái duyệt đổi thì trang shop đổi (hoặc thành 404): xoá cache sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#id")
   public UserResponse suspendSeller(UUID id) {
     User seller = findSeller(id);
     if (seller.getSellerStatus() != SellerStatus.APPROVED) {
