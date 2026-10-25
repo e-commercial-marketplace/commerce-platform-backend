@@ -6,6 +6,7 @@ import static com.marketplace.repository.ProductSpecifications.soldBy;
 import static com.marketplace.repository.ProductSpecifications.textMatches;
 
 import com.marketplace.common.response.PageResponse;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.request.ProductCreateRequest;
 import com.marketplace.dto.request.ProductUpdateRequest;
 import com.marketplace.dto.request.StockUpdateRequest;
@@ -21,6 +22,7 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.SellerProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -71,6 +73,8 @@ public class SellerProductServiceImpl implements SellerProductService {
   // @Transactional: mọi thay đổi trong hàm là một khối; hàm chạy xong thì Hibernate tự lưu các thay đổi.
   @Override
   @Transactional
+  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
   public ProductResponse create(UUID sellerId, ProductCreateRequest request) {
     // Bước 1: seller phải được duyệt (APPROVED), nếu không ném 403.
     User seller = userRepository.getApprovedSeller(sellerId);
@@ -100,6 +104,8 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
+  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
   public ProductResponse update(UUID sellerId, UUID productId, ProductUpdateRequest request) {
     // Bước 1: seller đã duyệt chưa? Bước 2: product có tồn tại và có phải của seller này không?
     userRepository.getApprovedSeller(sellerId);
@@ -131,6 +137,8 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
+  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
+  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
   public void delete(UUID sellerId, UUID productId) {
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
