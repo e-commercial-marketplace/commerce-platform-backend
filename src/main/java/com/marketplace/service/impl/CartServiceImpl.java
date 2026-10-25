@@ -13,6 +13,7 @@ import com.marketplace.repository.CartItemRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.CartService;
+import com.marketplace.service.ProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class CartServiceImpl implements CartService {
 
   private final CartItemRepository cartItemRepository;
   private final ProductRepository productRepository;
+  private final ProductService productService;
   private final UserRepository userRepository;
   private final TimeProvider timeProvider;
   private final CartMapper cartMapper;
@@ -49,7 +51,7 @@ public class CartServiceImpl implements CartService {
         productRepository
             .findById(request.productId())
             .orElseThrow(() -> BusinessException.notFound("Product", request.productId()));
-    product.ensureActive();
+    productService.ensureActive(product);
     // Bước 3: đã có dòng thì cộng dồn, chưa có thì tạo mới. Kiểm tồn kho trên TỔNG số lượng.
     CartItem existing =
         cartItemRepository.findByUserIdAndProductId(customerId, product.getId()).orElse(null);
@@ -58,7 +60,13 @@ public class CartServiceImpl implements CartService {
     long total = current + request.quantity();
     requireStock(product, total);
     if (existing == null) {
-      cartItemRepository.save(CartItem.add(customer, product, (int) total, timeProvider.now()));
+      cartItemRepository.save(
+          CartItem.builder()
+              .user(customer)
+              .product(product)
+              .quantity((int) total)
+              .createdAt(timeProvider.now())
+              .build());
     } else {
       existing.setQuantity((int) total); // giữ nguyên createdAt nên vị trí trong giỏ không đổi
     }
@@ -72,7 +80,7 @@ public class CartServiceImpl implements CartService {
     userRepository.lockRequired(customerId);
     CartItem item = findOwnedItem(customerId, cartItemId);
     // Đặt lại số lượng (không cộng dồn); product vẫn phải còn bán và đủ hàng.
-    item.getProduct().ensureActive();
+    productService.ensureActive(item.getProduct());
     requireStock(item.getProduct(), request.quantity());
     item.setQuantity(request.quantity());
     return buildCart(customerId);

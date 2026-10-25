@@ -1,6 +1,5 @@
 package com.marketplace.entity;
 
-import com.marketplace.common.exception.BusinessException;
 import com.marketplace.enums.OrderStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -19,12 +18,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -32,7 +31,10 @@ import org.hibernate.annotations.UuidGenerator;
 @Entity
 @Table(name = "orders")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Order {
 
   @Id
@@ -70,142 +72,21 @@ public class Order {
   // BatchSize: đọc items/payments của nhiều order bằng một câu IN (...), tránh một query cho mỗi order.
   @BatchSize(size = 50)
   @OneToMany(mappedBy = "order", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+  @Builder.Default
   private List<OrderItem> items = new ArrayList<>();
 
   @BatchSize(size = 50)
   @OneToMany(mappedBy = "order")
+  @Builder.Default
   private List<Payment> payments = new ArrayList<>();
 
   @BatchSize(size = 50)
   @OneToMany(mappedBy = "order")
+  @Builder.Default
   private List<Shipment> shipments = new ArrayList<>();
 
   @PrePersist
   void onCreate() {
     if (createdAt == null) createdAt = Instant.now();
-  }
-
-  /**
-   * Mở một order mới ở trạng thái PENDING. Phí ship cố định 0.00 và chưa có voucher (voucher làm ở
-   * Phase 8), nên giảm giá cũng là 0.00. Tổng tiền tăng dần khi thêm từng dòng hàng.
-   */
-  public static Order place(User customer, String shippingAddress, Instant now) {
-    Order order = new Order();
-    order.customer = customer;
-    order.shippingAddress = shippingAddress;
-    order.createdAt = now;
-    order.status = OrderStatus.PENDING;
-    order.shippingFee = BigDecimal.ZERO.setScale(2);
-    order.discountAmount = BigDecimal.ZERO.setScale(2);
-    order.totalAmount = BigDecimal.ZERO.setScale(2);
-    return order;
-  }
-
-  /** Thêm một dòng hàng chụp lại tên và giá hiện tại của product, rồi tính lại tổng tiền. */
-  public OrderItem addItem(Product product, int quantity) {
-    OrderItem item = OrderItem.snapshot(this, product, quantity);
-    items.add(item);
-    recalculateTotal();
-    return item;
-  }
-
-  /**
-   * Gọi sau khi huỷ dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để xem
-   * lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00. Sau đó đồng bộ các payment đang chờ:
-   * COD nhận tổng mới, VNPAY chuyển FAILED (link cũ mang số tiền cũ); order đã huỷ thì mọi payment đang
-   * chờ đều FAILED vì không còn gì để thu.
-   */
-  public void recalculateAfterCancellation() {
-    if (items.stream().allMatch(OrderItem::isCancelled)) {
-      status = OrderStatus.CANCELLED;
-      totalAmount = BigDecimal.ZERO.setScale(2);
-    } else {
-      recalculateTotal();
-    }
-    for (Payment payment : payments) {
-      payment.updatePendingAmount(totalAmount);
-      if (isCancelled()) {
-        payment.markFailed();
-      }
-    }
-  }
-
-  /**
-   * Huỷ mọi dòng chưa huỷ (ví dụ quá hạn thanh toán trước) và trả về các dòng vừa huỷ, để service cộng
-   * trả kho cho đúng các dòng đó (dòng đã huỷ từ trước không bị cộng lần hai).
-   */
-  public List<OrderItem> cancelRemainingItems(String reason) {
-    List<OrderItem> cancelled = items.stream().filter(item -> !item.isCancelled()).toList();
-    cancelled.forEach(item -> item.cancel(reason));
-    return cancelled;
-  }
-
-  /** Thanh toán trước đã hoàn tất: PENDING -> PAID. Trạng thái khác giữ nguyên. */
-  public void markPaid() {
-    if (status == OrderStatus.PENDING) {
-      status = OrderStatus.PAID;
-    }
-  }
-
-  /** Order trả trước qua VNPAY (có hạn 24 giờ); order COD thì thu tiền khi giao, không có hạn. */
-  public boolean isPrepayment() {
-    return payments.stream().anyMatch(Payment::isVnpay);
-  }
-
-  /**
-   * Gọi sau khi một shipment chuyển DELIVERED. Mọi dòng chưa huỷ đều đã nằm trong shipment DELIVERED thì
-   * order thành DELIVERED và payment COD đang chờ được ghi nhận đã thu (FR-SHIP-07, FR-PAY-02). Còn dòng
-   * chưa giao, hoặc có shipment FAILED/RETURNED, thì order giữ nguyên (FR-SHIP-10).
-   */
-  public void completeIfAllDelivered(Instant now) {
-    if (status != OrderStatus.PENDING && status != OrderStatus.PAID) {
-      return;
-    }
-    Set<UUID> delivered =
-        shipments.stream()
-            .filter(Shipment::isDelivered)
-            .flatMap(shipment -> shipment.orderItems().stream())
-            .map(OrderItem::getId)
-            .collect(Collectors.toSet());
-    boolean allDelivered =
-        items.stream()
-            .filter(item -> !item.isCancelled())
-            .allMatch(item -> delivered.contains(item.getId()));
-    if (allDelivered) {
-      status = OrderStatus.DELIVERED;
-      // VNPAY đã COMPLETED từ lúc trả tiền; chỉ COD còn chờ thu.
-      payments.stream().filter(payment -> !payment.isVnpay()).forEach(payment -> payment.complete(now));
-    }
-  }
-
-  /** Khách xác nhận đã nhận hàng: DELIVERED -> COMPLETED. Trạng thái khác thì 400. */
-  public void markReceived() {
-    if (status != OrderStatus.DELIVERED) {
-      throw BusinessException.validation("Only a DELIVERED order can be confirmed as received");
-    }
-    status = OrderStatus.COMPLETED;
-  }
-
-  public boolean isPending() {
-    return status == OrderStatus.PENDING;
-  }
-
-  public boolean isPaid() {
-    return status == OrderStatus.PAID;
-  }
-
-  public boolean isCancelled() {
-    return status == OrderStatus.CANCELLED;
-  }
-
-  /** Tổng = cộng (giá x số lượng) các dòng chưa huỷ - giảm giá + phí ship. */
-  private void recalculateTotal() {
-    totalAmount =
-        items.stream()
-            .filter(item -> !item.isCancelled())
-            .map(OrderItem::lineTotal)
-            .reduce(BigDecimal.ZERO, BigDecimal::add)
-            .subtract(discountAmount)
-            .add(shippingFee);
   }
 }

@@ -15,6 +15,7 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.repository.UserSpecifications;
 import com.marketplace.service.AdminUserService;
 import com.marketplace.service.RefreshTokenService;
+import com.marketplace.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,6 +37,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final RefreshTokenService refreshTokenService;
+  private final UserService userService;
   private final UserMapper userMapper;
 
   @Override
@@ -65,12 +67,12 @@ public class AdminUserServiceImpl implements AdminUserService {
     if (userRepository.existsByEmailIgnoreCase(email)) {
       throw emailTaken();
     }
-    // User.register tự đặt SELLER ở trạng thái PENDING; admin duyệt sau bằng endpoint approve.
+    // newUser tự đặt SELLER ở trạng thái PENDING; admin duyệt sau bằng endpoint approve.
     User user =
-        User.register(
+        userService.newUser(
             email, passwordEncoder.encode(request.password()), request.name().trim(), request.role());
     user.setEnabled(request.enabled() == null || request.enabled());
-    user.updateContact(request.phone(), request.address()); // admin nhập sẵn liên hệ (tuỳ chọn)
+    userService.updateContact(user, request.phone(), request.address()); // admin nhập sẵn liên hệ (tuỳ chọn)
     try {
       return userMapper.toResponse(userRepository.saveAndFlush(user));
     } catch (DataIntegrityViolationException e) {
@@ -93,7 +95,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     if (request.name() != null) {
       user.setFullName(request.name().trim()); // @NullOrNotBlank ở request đã chặn tên toàn khoảng trắng
     }
-    user.updateContact(request.phone(), request.address()); // admin có toàn quyền sửa liên hệ
+    userService.updateContact(user, request.phone(), request.address()); // admin có toàn quyền sửa liên hệ
     user.setRole(role);
     user.setSellerStatus(sellerStatus);
     if (request.enabled() != null) {

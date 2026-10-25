@@ -44,6 +44,17 @@ public interface ProductRepository
           + " where p.id = :id and p.active = true and p.stock >= :quantity")
   int decreaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
 
+  /**
+   * Cộng một đánh giá vào điểm trung bình và số lượt đánh giá trong MỘT câu UPDATE: vế phải dùng giá trị cũ
+   * của dòng, và dòng bị khoá khi cập nhật, nên hai đánh giá cùng lúc không làm sai số đếm. Cột
+   * rating_average là NUMERIC(3,2) nên DB tự làm tròn 2 chữ số.
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      "update Product p set p.ratingAverage = (p.ratingAverage * p.reviewCount + :rating)"
+          + " / (p.reviewCount + 1), p.reviewCount = p.reviewCount + 1 where p.id = :id")
+  int addRating(@Param("id") UUID id, @Param("rating") int rating);
+
   /** Cộng lại tồn kho khi một dòng hàng bị huỷ (không cần điều kiện: cộng thêm luôn hợp lệ). */
   @Modifying(flushAutomatically = true)
   @Query("update Product p set p.stock = p.stock + :quantity where p.id = :id")

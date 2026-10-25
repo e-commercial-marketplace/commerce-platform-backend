@@ -68,7 +68,7 @@ class ShipmentApiTest {
     phone = support.product(sellerA, category, "Phone", "100.00", 10);
     phoneCase = support.product(sellerA, category, "Case", "20.00", 10);
     charger = support.product(sellerB, category, "Charger", "50.00", 10);
-    ghn = carriers.save(Carrier.create("GHN " + UUID.randomUUID()));
+    ghn = carriers.save(Carrier.builder().name("GHN " + UUID.randomUUID()).active(true).build());
   }
 
   // ---------- đơn vị vận chuyển theo cách giao ----------
@@ -78,7 +78,7 @@ class ShipmentApiTest {
     String body = checkout("COD", addToCart(phone, 1));
     String order = orderIdOf(body);
     String line = confirmedLine(body, sellerA);
-    Carrier off = carriers.save(Carrier.create("Off " + UUID.randomUUID()));
+    Carrier off = carriers.save(Carrier.builder().name("Off " + UUID.randomUUID()).active(true).build());
     off.setActive(false);
     carriers.save(off);
 
@@ -327,13 +327,7 @@ class ShipmentApiTest {
   }
 
   private String addToCart(Product product, int quantity) throws Exception {
-    ResultActions result =
-        support.send(
-            mvc,
-            post("/api/v1/cart/items"),
-            customer,
-            "{\"productId\":\"" + product.getId() + "\",\"quantity\":" + quantity + "}");
-    return JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+    return support.addToCart(mvc, customer, product, quantity);
   }
 
   private String checkout(String method, String... cartItemIds) throws Exception {

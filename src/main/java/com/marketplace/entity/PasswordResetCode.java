@@ -10,9 +10,11 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -22,7 +24,10 @@ import org.hibernate.annotations.UuidGenerator;
 @Entity
 @Table(name = "password_reset_codes")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class PasswordResetCode {
 
   @Id
@@ -50,29 +55,4 @@ public class PasswordResetCode {
   // Đặt từ TimeProvider (không dùng @PrePersist) để giới hạn "60 giây / 5 lần mỗi giờ" dùng chung một đồng hồ.
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
-
-  /** Tạo mã mới cho user; {@code codeHash} là hash của mã thô, không bao giờ là mã thô. */
-  public static PasswordResetCode issue(User user, String codeHash, Instant now, Instant expiresAt) {
-    PasswordResetCode code = new PasswordResetCode();
-    code.user = user;
-    code.codeHash = codeHash;
-    code.createdAt = now;
-    code.expiresAt = expiresAt;
-    return code;
-  }
-
-  /** Còn dùng được: chưa dùng, chưa hết hạn, số lần sai còn dưới {@code maxAttempts}. */
-  public boolean isUsable(Instant now, int maxAttempts) {
-    return usedAt == null && expiresAt.isAfter(now) && attempts < maxAttempts;
-  }
-
-  /** Ghi nhận một lần nhập sai mã. */
-  public void recordFailedAttempt() {
-    attempts++;
-  }
-
-  /** Đánh dấu đã dùng, để mã không dùng lại được lần thứ hai. */
-  public void markUsed(Instant now) {
-    usedAt = now;
-  }
 }

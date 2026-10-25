@@ -5,17 +5,25 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Platform-issued discount code; usage concurrency is handled by transactional service logic. */
+/**
+ * Voucher của nền tảng, khoá chính là {@code code} (đã chuẩn hoá viết hoa). Dùng được khi
+ * {@code validFrom <= now < validTo} và {@code timesUsed < usageLimit}. Lượt dùng được trừ bằng một câu
+ * UPDATE có điều kiện ở {@code VoucherRepository.consume}, không qua entity, để nhiều checkout cùng lúc
+ * không vượt {@code usageLimit}.
+ */
 @Entity
 @Table(name = "vouchers")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Voucher {
 
   @Id

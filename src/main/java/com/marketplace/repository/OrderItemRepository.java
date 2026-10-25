@@ -39,4 +39,13 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select i from OrderItem i where i.id = :id")
   Optional<OrderItem> findByIdForUpdate(@Param("id") UUID id);
+
+  /** Customer có order COMPLETED chứa một dòng chưa huỷ của product này không (điều kiện để đánh giá). */
+  @Query(
+      "select count(i) > 0 from OrderItem i where i.order.customer.id = :customerId"
+          + " and i.product.id = :productId"
+          + " and i.status <> com.marketplace.enums.OrderItemStatus.CANCELLED"
+          + " and i.order.status = com.marketplace.enums.OrderStatus.COMPLETED")
+  boolean hasCompletedPurchase(
+      @Param("customerId") UUID customerId, @Param("productId") UUID productId);
 }

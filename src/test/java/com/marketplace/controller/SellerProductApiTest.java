@@ -248,7 +248,7 @@ class SellerProductApiTest {
         .andExpect(jsonPath("$.data.stock").value(7));
 
     // Gửi giá mới và đổi sang danh mục khác.
-    Category other = categories.save(Category.create("Other-" + UUID.randomUUID()));
+    Category other = categories.save(Category.builder().name("Other-" + UUID.randomUUID()).build());
     support.send(mvc, patch(BASE + "/" + id), seller, "{\"price\":\"69.00\",\"categoryId\":\"" + other.getId() + "\"}")
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.price").value("69.00"))

@@ -45,8 +45,8 @@ class CatalogPublicApiTest {
 
   @BeforeEach
   void setUp() {
-    category = categoryRepository.save(Category.create("Cat-" + UUID.randomUUID()));
-    seller = User.register("seller-" + UUID.randomUUID() + "@test.com", "hash", "Seller", Role.SELLER);
+    category = categoryRepository.save(Category.builder().name("Cat-" + UUID.randomUUID()).build());
+    seller = User.builder().email("seller-" + UUID.randomUUID() + "@test.com").passwordHash("hash").fullName("Seller").role(Role.SELLER).sellerStatus(Role.SELLER == Role.SELLER ? SellerStatus.PENDING : null).build();
     seller.setSellerStatus(SellerStatus.APPROVED);
     seller = userRepository.save(seller);
   }
@@ -183,14 +183,14 @@ class CatalogPublicApiTest {
 
   @Test
   void filtersBySellerAndNeverShowsTheirUnlistedProducts() throws Exception {
-    User other = User.register("other-" + UUID.randomUUID() + "@test.com", "hash", "Other", Role.SELLER);
+    User other = User.builder().email("other-" + UUID.randomUUID() + "@test.com").passwordHash("hash").fullName("Other").role(Role.SELLER).sellerStatus(Role.SELLER == Role.SELLER ? SellerStatus.PENDING : null).build();
     other.setSellerStatus(SellerStatus.APPROVED);
     other = userRepository.save(other);
     // Hai product của seller mặc định (một đang bán, một đã ẩn) và một product của seller khác.
     save("Mine", "d", "10.00", 1, "0.00", 0, true);
     save("MineHidden", "d", "10.00", 1, "0.00", 0, false);
     productRepository.save(
-        Product.create("Theirs", "d", null, new BigDecimal("10.00"), 1, category, other));
+        Product.builder().name("Theirs").description("d").imageUrl(null).price(new BigDecimal("10.00")).stock(1).category(category).seller(other).active(true).build());
 
     String c = "categoryId=" + category.getId();
     // Xem shop của seller mặc định: chỉ thấy product đang bán của họ, và trường active là true.
@@ -237,8 +237,8 @@ class CatalogPublicApiTest {
 
   @Test
   void categoriesArePublicAndSortedByName() throws Exception {
-    Category first = categoryRepository.save(Category.create("AAA-" + UUID.randomUUID()));
-    Category last = categoryRepository.save(Category.create("zzz-" + UUID.randomUUID()));
+    Category first = categoryRepository.save(Category.builder().name("AAA-" + UUID.randomUUID()).build());
+    Category last = categoryRepository.save(Category.builder().name("zzz-" + UUID.randomUUID()).build());
 
     mockMvc
         .perform(get("/api/v1/categories"))
@@ -264,7 +264,7 @@ class CatalogPublicApiTest {
       int reviewCount,
       boolean active) {
     Product product =
-        Product.create(name, description, null, new BigDecimal(price), stock, category, seller);
+        Product.builder().name(name).description(description).imageUrl(null).price(new BigDecimal(price)).stock(stock).category(category).seller(seller).active(true).build();
     product.setRatingAverage(new BigDecimal(rating));
     product.setReviewCount(reviewCount);
     product.setActive(active);

@@ -6,9 +6,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -19,7 +21,10 @@ import org.hibernate.annotations.UuidGenerator;
 @Entity
 @Table(name = "carriers")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Carrier {
 
   @Id
@@ -32,21 +37,4 @@ public class Carrier {
 
   @Column(name = "active", nullable = false)
   private boolean active;
-
-  /** Đơn vị mới luôn đang hoạt động. */
-  public static Carrier create(String name) {
-    Carrier carrier = new Carrier();
-    carrier.name = name;
-    carrier.active = true;
-    return carrier;
-  }
-
-  public void rename(String name) {
-    this.name = name;
-  }
-
-  /** Bật hoặc tắt; tắt thì seller không còn thấy đơn vị này. */
-  public void setActive(boolean active) {
-    this.active = active;
-  }
 }

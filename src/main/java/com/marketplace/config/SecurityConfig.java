@@ -81,9 +81,14 @@ public class SecurityConfig {
     API + "/ai/ask"
   };
 
-  /** Chỉ customer: giỏ hàng, checkout, order và thanh toán lại. Seller, admin gọi vào nhận 403. */
+  /** Chỉ customer: giỏ hàng, checkout, order, thanh toán lại, kiểm tra voucher và viết đánh giá. */
   private static final String[] CUSTOMER_ONLY = {
-    API + "/cart/**", API + "/orders/**", API + "/payments/**"
+    API + "/cart/**",
+    API + "/orders/**",
+    API + "/payments/**",
+    API + "/vouchers/**",
+    // Chỉ POST (tạo đánh giá) rơi vào đây: GET đã được PUBLIC_GET ở trên cho qua trước.
+    API + "/products/*/reviews"
   };
 
   /** Chỉ seller. Trạng thái APPROVED không nằm trong token nên service kiểm tra thêm trong DB. */

@@ -5,15 +5,15 @@ import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.response.VnpayIpnResponse;
 import com.marketplace.dto.response.VnpayPaymentResponse;
 import com.marketplace.entity.Order;
-import com.marketplace.entity.OrderItem;
 import com.marketplace.entity.Payment;
+import com.marketplace.enums.OrderStatus;
+import com.marketplace.enums.PaymentMethod;
+import com.marketplace.enums.PaymentStatus;
 import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.PaymentRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.PaymentService;
 import com.marketplace.vnpay.VnpayGateway;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,32 +22,50 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Thanh toán VNPAY. Mọi thao tác đổi trạng thái đều KHOÁ order trước (cùng khoá với seller huỷ dòng),
- * rồi mới đọc payment, nên IPN, Return URL, retry, seller huỷ và job 24 giờ chạy lần lượt trên cùng một
- * order và luôn thấy dữ liệu mới nhất.
+ * Thanh toán COD và VNPAY. Mọi thao tác đổi trạng thái đều KHOÁ order trước (cùng khoá với seller huỷ
+ * dòng), rồi mới đọc payment, nên IPN, Return URL, retry, seller huỷ và job 24 giờ chạy lần lượt trên cùng
+ * một order và luôn thấy dữ liệu mới nhất.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
 
-  /** Lý do ghi vào các dòng bị huỷ vì quá hạn thanh toán trước. */
-  static final String EXPIRED_REASON = "Payment deadline expired";
-
   // VNPAY báo thành công khi cả mã phản hồi và trạng thái giao dịch đều là "00".
   private static final String VNPAY_SUCCESS = "00";
 
   private final OrderRepository orderRepository;
   private final PaymentRepository paymentRepository;
-  private final ProductRepository productRepository;
   private final VnpayGateway vnpayGateway;
   private final TimeProvider timeProvider;
 
   @Override
+  public void openCod(Order order) {
+    // COD chờ thu tiền khi giao, số tiền bằng tổng của order lúc này.
+    Payment payment =
+        Payment.builder()
+            .order(order)
+            .method(PaymentMethod.COD)
+            .status(PaymentStatus.PENDING)
+            .amount(order.getTotalAmount())
+            .build();
+    order.getPayments().add(paymentRepository.save(payment));
+  }
+
+  @Override
   public String openVnpayAttempt(Order order, String clientIp) {
-    // Mã tham chiếu: UUID bỏ dấu gạch (32 ký tự chữ và số), duy nhất nhờ unique index trên transaction_id.
+    // Mã tham chiếu gửi VNPAY (vnp_TxnRef): UUID bỏ dấu gạch (32 ký tự chữ và số), duy nhất nhờ unique
+    // index trên transaction_id. Số tiền bằng tổng hiện tại của order.
     String txnRef = UUID.randomUUID().toString().replace("-", "");
-    Payment payment = paymentRepository.save(Payment.pendingVnpay(order, txnRef));
+    Payment payment =
+        paymentRepository.save(
+            Payment.builder()
+                .order(order)
+                .method(PaymentMethod.VNPAY)
+                .status(PaymentStatus.PENDING)
+                .amount(order.getTotalAmount())
+                .transactionId(txnRef)
+                .build());
     order.getPayments().add(payment);
     Instant deadline = order.getCreatedAt().plus(PREPAYMENT_DEADLINE);
     return vnpayGateway.buildPaymentUrl(payment, clientIp, timeProvider.now(), deadline);
@@ -64,14 +82,14 @@ public class PaymentServiceImpl implements PaymentService {
             .orElseThrow(() -> BusinessException.notFound("Order", orderId));
     // Bước 2: chỉ order VNPAY còn chờ, chưa trả và còn trong hạn 24 giờ mới thanh toán được.
     Instant now = timeProvider.now();
-    if (!order.isPending() || !order.isPrepayment() || hasCompletedPayment(order)) {
+    if (order.getStatus() != OrderStatus.PENDING || !isPrepayment(order) || hasCompletedPayment(order)) {
       throw BusinessException.orderNotPayable("The order cannot be paid with VNPAY");
     }
     if (isPastDeadline(order, now)) {
       throw BusinessException.orderNotPayable("The payment deadline has passed");
     }
     // Bước 3: link cũ (nếu còn) hết dùng được, để mỗi lúc chỉ có một link thanh toán được cho order.
-    order.getPayments().stream().filter(Payment::isVnpay).forEach(Payment::markFailed);
+    order.getPayments().stream().filter(PaymentServiceImpl::isVnpay).forEach(PaymentServiceImpl::markFailed);
     // Bước 4: lần thử mới với tổng hiện tại và link mới.
     String paymentUrl = openVnpayAttempt(order, clientIp);
     Payment attempt = order.getPayments().get(order.getPayments().size() - 1);
@@ -106,8 +124,8 @@ public class PaymentServiceImpl implements PaymentService {
         VNPAY_SUCCESS.equals(params.get("vnp_ResponseCode"))
             && VNPAY_SUCCESS.equals(params.get("vnp_TransactionStatus"));
     // Bước 4: đã xử lý rồi (IPN và Return cùng tới, hoặc VNPAY gửi lại) thì không đổi gì thêm.
-    if (!payment.isPending()) {
-      if (success && !payment.isCompleted()) {
+    if (payment.getStatus() != PaymentStatus.PENDING) {
+      if (success && payment.getStatus() != PaymentStatus.COMPLETED) {
         // Khách đã trả tiền cho một lần thử đã bị huỷ (có retry, tổng đổi, hoặc order hết hạn): cần hoàn tay.
         log.warn(
             "VNPAY success for non-payable attempt txnRef={} order={}: refund manually",
@@ -116,49 +134,77 @@ public class PaymentServiceImpl implements PaymentService {
       }
       return new VnpayResult(VnpayIpnResponse.ALREADY_CONFIRMED, orderId, payment.getStatus());
     }
-    // Bước 5: ghi nhận kết quả. Thành công: payment COMPLETED và order PAID; thất bại: chỉ payment FAILED,
-    // order vẫn chờ để khách thanh toán lại.
+    // Bước 5: ghi nhận kết quả. Thành công: payment COMPLETED và order PENDING -> PAID; thất bại: chỉ
+    // payment FAILED, order vẫn chờ để khách thanh toán lại.
     if (success) {
-      payment.complete(timeProvider.now());
-      order.markPaid();
+      complete(payment, timeProvider.now());
+      if (order.getStatus() == OrderStatus.PENDING) {
+        order.setStatus(OrderStatus.PAID);
+      }
     } else {
-      payment.markFailed();
+      markFailed(payment);
     }
     log.info("VNPAY result txnRef={} order={} -> {}", txnRef, orderId, payment.getStatus());
     return new VnpayResult(VnpayIpnResponse.CONFIRMED, orderId, payment.getStatus());
   }
 
   @Override
-  @Transactional
-  public boolean cancelExpiredOrder(UUID orderId, Instant now) {
-    // Khoá order rồi kiểm lại: có thể khách vừa trả tiền xong sau lúc job lấy danh sách.
-    Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
-    if (order == null
-        || !order.isPending()
-        || !order.isPrepayment()
-        || hasCompletedPayment(order)
-        || !isPastDeadline(order, now)) {
-      return false;
-    }
-    // Trả kho theo thứ tự id product (giống checkout) để không khoá chéo với các giao dịch khác.
-    order.cancelRemainingItems(EXPIRED_REASON).stream()
-        .sorted(Comparator.comparing(item -> item.getProduct().getId()))
-        .forEach(this::restoreStock);
-    // Không còn dòng nào: order CANCELLED, tổng 0.00, payment đang chờ FAILED.
-    order.recalculateAfterCancellation();
-    return true;
+  public boolean isPrepayment(Order order) {
+    return order.getPayments().stream().anyMatch(PaymentServiceImpl::isVnpay);
   }
 
-  private void restoreStock(OrderItem item) {
-    productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
+  @Override
+  public boolean hasCompletedPayment(Order order) {
+    return order.getPayments().stream().anyMatch(p -> p.getStatus() == PaymentStatus.COMPLETED);
   }
 
-  private static boolean hasCompletedPayment(Order order) {
-    return order.getPayments().stream().anyMatch(Payment::isCompleted);
-  }
-
-  private static boolean isPastDeadline(Order order, Instant now) {
+  @Override
+  public boolean isPastDeadline(Order order, Instant now) {
     return !now.isBefore(order.getCreatedAt().plus(PREPAYMENT_DEADLINE));
+  }
+
+  @Override
+  public void syncPendingPayments(Order order) {
+    boolean orderCancelled = order.getStatus() == OrderStatus.CANCELLED;
+    for (Payment payment : order.getPayments()) {
+      if (payment.getStatus() != PaymentStatus.PENDING) {
+        continue;
+      }
+      if (isVnpay(payment)) {
+        payment.setStatus(PaymentStatus.FAILED); // link đã gửi mang số tiền cũ, khách thanh toán lại
+      } else {
+        payment.setAmount(order.getTotalAmount()); // COD thu lúc giao nên nhận tổng mới
+      }
+      if (orderCancelled) {
+        markFailed(payment); // không còn gì để thu
+      }
+    }
+  }
+
+  @Override
+  public void completeCod(Order order, Instant now) {
+    order.getPayments().stream()
+        .filter(payment -> !isVnpay(payment))
+        .forEach(payment -> complete(payment, now));
+  }
+
+  private static boolean isVnpay(Payment payment) {
+    return payment.getMethod() == PaymentMethod.VNPAY;
+  }
+
+  /** Đã thu được tiền. Chỉ đi được từ PENDING; trạng thái khác giữ nguyên. */
+  private static void complete(Payment payment, Instant now) {
+    if (payment.getStatus() == PaymentStatus.PENDING) {
+      payment.setStatus(PaymentStatus.COMPLETED);
+      payment.setPaidAt(now);
+    }
+  }
+
+  /** Không còn thu được: payment đang chờ kết thúc ở FAILED. */
+  private static void markFailed(Payment payment) {
+    if (payment.getStatus() == PaymentStatus.PENDING) {
+      payment.setStatus(PaymentStatus.FAILED);
+    }
   }
 
   /** {@code vnp_Amount} là số nguyên (tiền x 100); sai định dạng cũng coi như sai số tiền. */

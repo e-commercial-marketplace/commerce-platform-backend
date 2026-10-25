@@ -6,12 +6,15 @@ import com.marketplace.dto.response.OrderItemResponse;
 import com.marketplace.entity.Order;
 import com.marketplace.entity.OrderItem;
 import com.marketplace.enums.OrderItemStatus;
+import com.marketplace.enums.OrderStatus;
 import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.UserRepository;
+import com.marketplace.service.OrderService;
+import com.marketplace.service.PaymentService;
 import com.marketplace.service.SellerOrderService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +40,8 @@ public class SellerOrderServiceImpl implements SellerOrderService {
   private final ShipmentOrderItemRepository shipmentOrderItemRepository;
   private final ProductRepository productRepository;
   private final UserRepository userRepository;
+  private final OrderService orderService;
+  private final PaymentService paymentService;
   private final OrderMapper orderMapper;
 
   @Override
@@ -56,7 +61,17 @@ public class SellerOrderServiceImpl implements SellerOrderService {
   public OrderItemResponse confirm(UUID sellerId, UUID orderItemId) {
     userRepository.getApprovedSeller(sellerId);
     OrderItem item = lockOwnedItem(sellerId, orderItemId);
-    item.confirm(); // chỉ từ PENDING, ngược lại 400
+    // Chỉ đi được từ PENDING, ngược lại 400.
+    if (item.getStatus() != OrderItemStatus.PENDING) {
+      throw BusinessException.validation("Only a PENDING order item can be confirmed");
+    }
+    // Order trả trước qua VNPAY chỉ được xác nhận khi đã PAID (FR-FUL-05), để seller không chuẩn bị hàng
+    // cho đơn khách chưa trả tiền.
+    Order order = item.getOrder();
+    if (paymentService.isPrepayment(order) && order.getStatus() != OrderStatus.PAID) {
+      throw BusinessException.validation("The order is not paid yet");
+    }
+    item.setStatus(OrderItemStatus.CONFIRMED);
     return orderMapper.toItem(item);
   }
 
@@ -76,15 +91,15 @@ public class SellerOrderServiceImpl implements SellerOrderService {
             .findByIdForUpdate(item.getOrder().getId())
             .orElseThrow(() -> BusinessException.notFound("Order", item.getOrder().getId()));
     // Bước 3: khách đã thanh toán trước thì không huỷ được, vì chưa có quy trình hoàn tiền.
-    if (order.isPaid()) {
+    if (order.getStatus() == OrderStatus.PAID) {
       throw BusinessException.cannotCancelAfterPayment("The order is already paid");
     }
     // Bước 4: huỷ dòng (dòng đã huỷ thì 400, nên bước trả kho dưới đây chỉ chạy đúng một lần).
-    item.cancel(reason);
+    orderService.cancelItem(item, reason);
     productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
     // Bước 5: tính lại tổng và đồng bộ payment đang chờ (COD nhận tổng mới, VNPAY thành FAILED); không
     // còn dòng nào thì order CANCELLED và mọi payment đang chờ FAILED.
-    order.recalculateAfterCancellation();
+    orderService.recalculateAfterCancellation(order);
     return orderMapper.toItem(item);
   }
 

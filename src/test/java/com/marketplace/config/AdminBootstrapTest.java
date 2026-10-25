@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.repository.UserRepository;
+import com.marketplace.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,7 +36,8 @@ class AdminBootstrapTest {
 
   /** Dựng AdminBootstrap rồi gán email/mật khẩu như thể chúng đến từ biến môi trường. */
   private AdminBootstrap bootstrap(String email, String password) {
-    AdminBootstrap bootstrap = new AdminBootstrap(users, encoder);
+    // UserService thật: newUser chỉ dựng đối tượng User, không đọc ghi DB và không cần mapper.
+    AdminBootstrap bootstrap = new AdminBootstrap(users, encoder, new UserServiceImpl(users, null));
     // email và password là field @Value (không có setter), nên gán bằng reflection trong test.
     ReflectionTestUtils.setField(bootstrap, "email", email);
     ReflectionTestUtils.setField(bootstrap, "password", password);
