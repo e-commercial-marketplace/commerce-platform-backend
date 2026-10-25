@@ -72,11 +72,12 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     // Bước 4: mã mới thay mã cũ (vô hiệu mã chưa dùng), rồi lưu HASH của mã mới, không lưu mã thô.
     codeRepository.invalidateAll(user.getId(), now);
     codeRepository.save(
-        PasswordResetCode.issue(
-            user,
-            passwordEncoder.encode(code),
-            now,
-            now.plus(Duration.ofMinutes(props.codeTtlMinutes()))));
+        PasswordResetCode.builder()
+            .user(user)
+            .codeHash(passwordEncoder.encode(code))
+            .createdAt(now)
+            .expiresAt(now.plus(Duration.ofMinutes(props.codeTtlMinutes())))
+            .build());
     // Bước 5: gửi email. Lỗi gửi chỉ ghi log, không ném ra ngoài, để response không lộ email có tồn tại.
     // Người dùng xin lại mã sau 60 giây nếu không nhận được.
     try {
@@ -103,11 +104,11 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     PasswordResetCode code =
         codeRepository
             .findFirstByUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getId())
-            .filter(c -> c.isUsable(now, props.maxAttempts()))
+            .filter(c -> isUsable(c, now))
             .orElseThrow(this::invalidCode);
     // Bước 3: so mã người dùng nhập với hash. Sai thì tăng số lần sai (được lưu nhờ noRollbackFor) rồi báo lỗi.
     if (!passwordEncoder.matches(request.code(), code.getCodeHash())) {
-      code.recordFailedAttempt();
+      code.setAttempts(code.getAttempts() + 1);
       throw invalidCode();
     }
     // Bước 4: đúng mã. Đổi mật khẩu (lưu hash), vô hiệu mọi mã còn lại để mã này không dùng lại được.
@@ -136,5 +137,12 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
   private BusinessException invalidCode() {
     return BusinessException.validation(INVALID_CODE);
+  }
+
+  /** Mã còn dùng được: chưa dùng, chưa hết hạn và chưa nhập sai quá số lần cho phép. */
+  private boolean isUsable(PasswordResetCode code, Instant now) {
+    return code.getUsedAt() == null
+        && code.getExpiresAt().isAfter(now)
+        && code.getAttempts() < props.maxAttempts();
   }
 }

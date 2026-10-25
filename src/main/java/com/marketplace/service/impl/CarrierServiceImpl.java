@@ -47,7 +47,7 @@ public class CarrierServiceImpl implements CarrierService {
       throw duplicateName();
     }
     // Bước 2: lưu ngay (flush) để hai request tạo cùng tên một lúc bật lỗi unique tại đây.
-    return save(Carrier.create(name));
+    return save(Carrier.builder().name(name).active(true).build());
   }
 
   @Override
@@ -61,7 +61,7 @@ public class CarrierServiceImpl implements CarrierService {
       if (carrierRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
         throw duplicateName();
       }
-      carrier.rename(name);
+      carrier.setName(name);
     }
     if (request.active() != null) {
       carrier.setActive(request.active());

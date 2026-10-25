@@ -1,8 +1,11 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.common.util.VietnamesePhone;
 import com.marketplace.dto.request.UserProfileUpdateRequest;
 import com.marketplace.dto.response.UserProfileResponse;
 import com.marketplace.entity.User;
+import com.marketplace.enums.Role;
+import com.marketplace.enums.SellerStatus;
 import com.marketplace.mapper.UserMapper;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.UserService;
@@ -34,9 +37,30 @@ public class UserServiceImpl implements UserService {
       user.setFullName(request.name().trim());
     }
     // Bước 3: liên hệ dùng chung quy tắc với admin: null giữ nguyên, chuỗi rỗng xoá, số điện thoại chuẩn hoá.
-    user.updateContact(request.phone(), request.address());
+    updateContact(user, request.phone(), request.address());
     // Bước 4: flush để updatedAt (@PreUpdate) có giá trị mới, rồi trả hồ sơ sau khi sửa.
     return userMapper.toProfile(userRepository.saveAndFlush(user));
   }
 
+  @Override
+  public User newUser(String email, String passwordHash, String fullName, Role role) {
+    return User.builder()
+        .email(email)
+        .passwordHash(passwordHash)
+        .fullName(fullName)
+        .role(role)
+        .sellerStatus(role == Role.SELLER ? SellerStatus.PENDING : null)
+        .build();
+  }
+
+  @Override
+  public void updateContact(User user, String phone, String address) {
+    if (phone != null) {
+      user.setPhone(VietnamesePhone.normalize(phone));
+    }
+    if (address != null) {
+      String trimmed = address.trim();
+      user.setAddress(trimmed.isEmpty() ? null : trimmed);
+    }
+  }
 }

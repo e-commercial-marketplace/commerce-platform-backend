@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.marketplace.enums.SellerStatus;
 import com.marketplace.entity.RefreshToken;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
@@ -117,10 +118,10 @@ class AuthTokenEdgeCaseTest {
   @Test
   void expiredRefreshTokenIs401() throws Exception {
     // Tạo thẳng trong DB một refresh token đã hết hạn (hạn là 60 giây trước).
-    User user = users.save(User.register(email(), encoder.encode(PASSWORD), "Old", Role.CUSTOMER));
+    User user = users.save(User.builder().email(email()).passwordHash(encoder.encode(PASSWORD)).fullName("Old").role(Role.CUSTOMER).sellerStatus(Role.CUSTOMER == Role.SELLER ? SellerStatus.PENDING : null).build());
     String raw = "expired-refresh-" + UUID.randomUUID();
     // DB chỉ lưu bản băm, nên phải băm giống cách RefreshTokenServiceImpl làm.
-    refreshTokens.save(RefreshToken.issue(user, sha256(raw), Instant.now().minusSeconds(60)));
+    refreshTokens.save(RefreshToken.builder().user(user).tokenHash(sha256(raw)).expiresAt(Instant.now().minusSeconds(60)).build());
 
     refresh(raw)
         .andExpect(status().isUnauthorized())
@@ -156,7 +157,7 @@ class AuthTokenEdgeCaseTest {
   void adminCanLoginAndReachTheAdminArea() throws Exception {
     // ADMIN không đăng ký công khai được, nên tạo trực tiếp trong DB (giống bước bootstrap).
     String email = email();
-    users.save(User.register(email, encoder.encode(PASSWORD), "Admin", Role.ADMIN));
+    users.save(User.builder().email(email).passwordHash(encoder.encode(PASSWORD)).fullName("Admin").role(Role.ADMIN).sellerStatus(Role.ADMIN == Role.SELLER ? SellerStatus.PENDING : null).build());
 
     // Đăng nhập thật qua /auth/login để lấy token, rồi dùng token đó vào khu vực admin.
     String token =

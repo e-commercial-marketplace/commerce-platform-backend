@@ -10,9 +10,11 @@ import com.marketplace.entity.Carrier;
 import com.marketplace.entity.Order;
 import com.marketplace.entity.OrderItem;
 import com.marketplace.entity.Shipment;
+import com.marketplace.entity.ShipmentOrderItem;
 import com.marketplace.entity.User;
 import com.marketplace.enums.DeliveryMethod;
 import com.marketplace.enums.OrderItemStatus;
+import com.marketplace.enums.OrderStatus;
 import com.marketplace.enums.ShipmentStatus;
 import com.marketplace.mapper.ShipmentMapper;
 import com.marketplace.repository.CarrierRepository;
@@ -22,10 +24,15 @@ import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.ShipmentRepository;
 import com.marketplace.repository.UserRepository;
+import com.marketplace.service.OrderService;
 import com.marketplace.service.ShipmentService;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,6 +54,16 @@ public class ShipmentServiceImpl implements ShipmentService {
   /** Lý do ghi vào các dòng bị huỷ theo shipment. */
   static final String SHIPMENT_CANCELLED_REASON = "Shipment cancelled";
 
+  /** Các bước được phép đi tiếp từ mỗi trạng thái (theo contract shipment); trạng thái khác là điểm cuối. */
+  private static final Map<ShipmentStatus, Set<ShipmentStatus>> NEXT = new EnumMap<>(ShipmentStatus.class);
+
+  static {
+    NEXT.put(ShipmentStatus.PENDING, Set.of(ShipmentStatus.PREPARING, ShipmentStatus.CANCELLED));
+    NEXT.put(ShipmentStatus.PREPARING, Set.of(ShipmentStatus.SHIPPED, ShipmentStatus.CANCELLED));
+    NEXT.put(ShipmentStatus.SHIPPED, Set.of(ShipmentStatus.DELIVERED, ShipmentStatus.FAILED));
+    NEXT.put(ShipmentStatus.FAILED, Set.of(ShipmentStatus.RETURNED));
+  }
+
   private final ShipmentRepository shipmentRepository;
   private final ShipmentOrderItemRepository shipmentOrderItemRepository;
   private final OrderItemRepository orderItemRepository;
@@ -54,6 +71,7 @@ public class ShipmentServiceImpl implements ShipmentService {
   private final CarrierRepository carrierRepository;
   private final ProductRepository productRepository;
   private final UserRepository userRepository;
+  private final OrderService orderService;
   private final ShipmentMapper shipmentMapper;
   private final TimeProvider timeProvider;
 
@@ -97,7 +115,7 @@ public class ShipmentServiceImpl implements ShipmentService {
       // unique (order, seller) tại đây.
       Shipment shipment =
           shipmentRepository.saveAndFlush(
-              Shipment.create(order, seller, request.deliveryMethod(), carrier, items));
+              newShipment(order, seller, request.deliveryMethod(), carrier, items));
       return shipmentMapper.toResponse(shipment);
     } catch (DataIntegrityViolationException e) {
       throw alreadyShipped();
@@ -132,35 +150,81 @@ public class ShipmentServiceImpl implements ShipmentService {
     }
     // Bước 2: khoá các dòng (theo id) rồi tới order, cùng thứ tự với seller huỷ dòng.
     List<OrderItem> items =
-        shipment.orderItems().stream()
-            .map(OrderItem::getId)
+        shipment.getShipmentItems().stream()
+            .map(mapping -> mapping.getOrderItem().getId())
             .sorted()
             .map(this::lockItem)
             .toList();
     Order order = orderRepository.findByIdForUpdate(shipment.getOrder().getId()).orElseThrow();
     ShipmentStatus target = request.status();
-    if (target == ShipmentStatus.CANCELLED && order.isPaid()) {
+    if (target == ShipmentStatus.CANCELLED && order.getStatus() == OrderStatus.PAID) {
       // Khách đã trả trước, chưa có quy trình hoàn tiền.
       throw BusinessException.validation("A shipment of a paid order cannot be cancelled");
     }
     // Bước 3: đổi trạng thái (sai bước hoặc thiếu mã vận đơn thì 400).
     Instant now = timeProvider.now();
-    shipment.moveTo(target, request.trackingCode(), now);
+    moveTo(shipment, target, request.trackingCode(), now);
     // Bước 4: việc đi kèm theo trạng thái mới.
     switch (target) {
       // Mọi dòng chưa huỷ đã giao xong thì order DELIVERED và COD được ghi nhận đã thu.
-      case DELIVERED -> order.completeIfAllDelivered(now);
+      case DELIVERED -> orderService.completeIfAllDelivered(order, now);
       // Hàng đã về kho seller: trả kho. Chỉ đi được từ FAILED nên chạy đúng một lần.
       case RETURNED -> items.forEach(this::restoreStock);
       case CANCELLED -> {
         // Chưa gửi đi: huỷ các dòng, trả kho, tính lại tổng và payment đang chờ (dùng lại từ Phase 6).
-        items.forEach(item -> item.cancel(SHIPMENT_CANCELLED_REASON));
+        items.forEach(item -> orderService.cancelItem(item, SHIPMENT_CANCELLED_REASON));
         items.forEach(this::restoreStock);
-        order.recalculateAfterCancellation();
+        orderService.recalculateAfterCancellation(order);
       }
       default -> {} // PREPARING, SHIPPED, FAILED: chỉ đổi trạng thái (FAILED không trả kho)
     }
     return shipmentMapper.toResponse(shipment);
+  }
+
+  /**
+   * Tạo shipment PENDING gom các dòng hàng đã kiểm tra (cùng order, cùng seller, đã CONFIRMED). Phí ship
+   * cố định 0.00 như checkout.
+   */
+  private static Shipment newShipment(
+      Order order, User seller, DeliveryMethod method, Carrier carrier, List<OrderItem> items) {
+    Shipment shipment =
+        Shipment.builder()
+            .order(order)
+            .seller(seller)
+            .deliveryMethod(method)
+            .carrier(carrier)
+            .status(ShipmentStatus.PENDING)
+            .shippingFee(BigDecimal.ZERO.setScale(2))
+            .build();
+    // Gán nguyên từng dòng hàng; @MapsId tự điền khoá ghép từ shipment và dòng hàng lúc lưu.
+    items.forEach(
+        item ->
+            shipment
+                .getShipmentItems()
+                .add(ShipmentOrderItem.builder().shipment(shipment).orderItem(item).build()));
+    return shipment;
+  }
+
+  /**
+   * Chuyển sang trạng thái mới nếu được phép, ngược lại 400. SHIPPED bắt buộc có mã vận đơn và ghi lúc
+   * gửi; DELIVERED ghi lúc giao. Việc trả kho, huỷ dòng hay hoàn tất order làm sau bước này.
+   */
+  private static void moveTo(Shipment shipment, ShipmentStatus target, String trackingCode, Instant now) {
+    ShipmentStatus current = shipment.getStatus();
+    if (!NEXT.getOrDefault(current, Set.of()).contains(target)) {
+      throw BusinessException.validation("Cannot move a shipment from " + current + " to " + target);
+    }
+    if (target == ShipmentStatus.SHIPPED) {
+      if (trackingCode == null || trackingCode.isBlank()) {
+        throw BusinessException.validation("trackingCode is required to mark a shipment SHIPPED");
+      }
+      shipment.setTrackingCode(trackingCode.trim());
+      shipment.setShippedAt(now);
+    }
+    if (target == ShipmentStatus.DELIVERED) {
+      shipment.setDeliveredAt(now);
+    }
+    shipment.setStatus(target);
   }
 
   /**

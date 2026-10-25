@@ -11,7 +11,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,7 +23,9 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "refresh_tokens")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class RefreshToken {
 
   @Id
@@ -49,18 +52,5 @@ public class RefreshToken {
   @PrePersist
   void onCreate() {
     if (createdAt == null) createdAt = Instant.now();
-  }
-
-  public static RefreshToken issue(User user, String tokenHash, Instant expiresAt) {
-    RefreshToken refreshToken = new RefreshToken();
-    refreshToken.user = user;
-    refreshToken.tokenHash = tokenHash;
-    refreshToken.expiresAt = expiresAt;
-    return  refreshToken;
-  }
-
-  /** Token còn dùng được: chưa revoke và chưa hết hạn. */
-  public boolean isUsable(Instant now) {
-    return revokedAt == null && expiresAt.isAfter(now);
   }
 }

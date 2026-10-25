@@ -1,6 +1,7 @@
 package com.marketplace.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -15,6 +16,7 @@ import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.ProductRepository;
+import com.marketplace.repository.VoucherRepository;
 import com.marketplace.support.TestSupport;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,6 +29,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -41,6 +44,8 @@ class VoucherApiTest {
   @Autowired private MockMvc mvc;
   @Autowired private TestSupport support;
   @Autowired private ProductRepository products;
+  // Spy: repository thật, chỉ giả kết quả existsById trong test tạo trùng mã song song.
+  @MockitoSpyBean private VoucherRepository voucherRepository;
 
   private User admin;
   private User customer;
@@ -124,6 +129,22 @@ class VoucherApiTest {
     }
     validate(sellerA, "ANY").andExpect(status().isForbidden()); // kiểm tra mã chỉ dành cho customer
     asAdmin(get(ADMIN)).andExpect(status().isOk()).andExpect(jsonPath("$.data.content").isArray());
+  }
+
+  @Test
+  void aDuplicateCodeThatSlipsPastTheExistsCheckIsStill400() throws Exception {
+    String code = "RACE" + suffix();
+    Instant from = Instant.now().minusSeconds(60);
+    Instant to = Instant.now().plus(Duration.ofDays(1));
+    create(code, 10, from, to, 5).andExpect(status().isCreated());
+    // Giả lúc hai admin tạo cùng mã song song: bước kiểm tra trước "chưa thấy" mã, nên request này đi tới
+    // INSERT thật và DB bật lỗi khoá chính. Lỗi đó phải thành 400, không phải 500.
+    doReturn(false).when(voucherRepository).existsById(code);
+    create(code, 20, from, to, 5)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    // Voucher có sẵn không bị ghi đè.
+    assertThat(voucherRepository.findById(code).orElseThrow().getDiscountPercent()).isEqualTo(10);
   }
 
   // ---------- khách kiểm tra mã ----------

@@ -15,7 +15,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -27,7 +28,9 @@ import org.hibernate.annotations.UuidGenerator;
     name = "uq_conversations_customer_seller", columnNames = {"customer_id", "seller_id"}))
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Conversation {
 
   @Id
@@ -58,6 +61,7 @@ public class Conversation {
   private Order order;
 
   @OneToMany(mappedBy = "conversation")
+  @Builder.Default
   private List<Message> messages = new ArrayList<>();
 
   @PrePersist

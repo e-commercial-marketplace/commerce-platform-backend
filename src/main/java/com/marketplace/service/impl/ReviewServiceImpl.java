@@ -45,13 +45,14 @@ public class ReviewServiceImpl implements ReviewService {
       throw alreadyReviewed();
     }
     Review review =
-        Review.create(
+        Review.builder()
             // Chỉ cần tham chiếu để gắn khoá ngoại: user chắc chắn tồn tại (đã qua token và điều kiện mua hàng).
-            userRepository.getReferenceById(customerId),
-            product,
-            request.rating(),
-            request.comment().trim(),
-            timeProvider.now());
+            .user(userRepository.getReferenceById(customerId))
+            .product(product)
+            .rating(request.rating())
+            .comment(request.comment().trim())
+            .createdAt(timeProvider.now())
+            .build();
     try {
       // Flush ngay: hai request đánh giá cùng lúc thì bên thua bật lỗi unique (user, product) tại đây.
       review = reviewRepository.saveAndFlush(review);

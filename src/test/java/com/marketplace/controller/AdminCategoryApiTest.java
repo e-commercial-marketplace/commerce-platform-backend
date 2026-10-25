@@ -157,7 +157,7 @@ class AdminCategoryApiTest {
   void categoryWithProductsCannotBeDeleted() throws Exception {
     Category used = category("Used-" + UUID.randomUUID());
     User seller = support.user(Role.SELLER, SellerStatus.APPROVED);
-    Product hidden = Product.create("P", "d", null, new BigDecimal("10.00"), 1, used, seller);
+    Product hidden = Product.builder().name("P").description("d").imageUrl(null).price(new BigDecimal("10.00")).stock(1).category(used).seller(seller).active(true).build();
     hidden.setActive(false); // product đã ẩn vẫn tính là "còn product", vì còn tham chiếu tới category
     products.save(hidden);
 
@@ -178,7 +178,7 @@ class AdminCategoryApiTest {
   // ---------- hàm hỗ trợ ----------
 
   private Category category(String name) {
-    return categories.save(Category.create(name));
+    return categories.save(Category.builder().name(name).build());
   }
 
   private static String idOf(ResultActions result) throws Exception {

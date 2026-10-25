@@ -14,7 +14,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,7 +26,9 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "ai_chat_sessions")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AiChatSession {
 
   @Id
@@ -41,6 +44,7 @@ public class AiChatSession {
   private User user;
 
   @OneToMany(mappedBy = "session")
+  @Builder.Default
   private List<AiMessage> messages = new ArrayList<>();
 
   @PrePersist

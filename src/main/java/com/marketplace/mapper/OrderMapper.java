@@ -6,6 +6,7 @@ import com.marketplace.dto.response.OrderSummaryResponse;
 import com.marketplace.entity.Order;
 import com.marketplace.entity.OrderItem;
 import com.marketplace.entity.Payment;
+import com.marketplace.enums.PaymentStatus;
 import java.util.List;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -41,9 +42,9 @@ public interface OrderMapper {
   default Payment currentPayment(Order order) {
     List<Payment> payments = order.getPayments();
     return payments.stream()
-        .filter(Payment::isCompleted)
+        .filter(p -> p.getStatus() == PaymentStatus.COMPLETED)
         .findFirst()
-        .or(() -> payments.stream().filter(Payment::isPending).findFirst())
+        .or(() -> payments.stream().filter(p -> p.getStatus() == PaymentStatus.PENDING).findFirst())
         .orElseGet(() -> payments.get(payments.size() - 1));
   }
 }

@@ -11,7 +11,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -26,7 +27,9 @@ import org.hibernate.annotations.UuidGenerator;
     name = "uq_cart_items_user_product", columnNames = {"user_id", "product_id"}))
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CartItem {
 
   @Id
@@ -48,14 +51,4 @@ public class CartItem {
   // Thời điểm thêm lần đầu; giỏ sắp mới nhất trước. Cộng dồn số lượng không đổi giá trị này.
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
-
-  /** Tạo dòng giỏ mới cho customer. */
-  public static CartItem add(User user, Product product, int quantity, Instant now) {
-    CartItem item = new CartItem();
-    item.user = user;
-    item.product = product;
-    item.quantity = quantity;
-    item.createdAt = now;
-    return item;
-  }
 }
