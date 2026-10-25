@@ -1,5 +1,6 @@
 package com.marketplace.support;
 
+import com.jayway.jsonpath.JsonPath;
 import com.marketplace.entity.Category;
 import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
@@ -11,6 +12,8 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.JwtService;
 import java.math.BigDecimal;
 import java.util.UUID;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -87,5 +90,19 @@ public class TestSupport {
             .header(HttpHeaders.AUTHORIZATION, bearer(who))
             .contentType(MediaType.APPLICATION_JSON)
             .content(json));
+  }
+
+  /**
+   * {@code who} thêm {@code quantity} cái {@code product} vào giỏ và trả về id dòng giỏ vừa thêm (giỏ sắp
+   * mới nhất trước nên đó là dòng đầu tiên).
+   */
+  public String addToCart(MockMvc mvc, User who, Product product, int quantity) throws Exception {
+    ResultActions result =
+        send(
+            mvc,
+            post("/api/v1/cart/items"),
+            who,
+            "{\"productId\":\"" + product.getId() + "\",\"quantity\":" + quantity + "}");
+    return JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
   }
 }

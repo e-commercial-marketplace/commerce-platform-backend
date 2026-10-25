@@ -266,13 +266,7 @@ class OrderApiTest {
   }
 
   private String addToCart(User who, Product product, int quantity) throws Exception {
-    ResultActions result =
-        support.send(
-            mvc,
-            post("/api/v1/cart/items"),
-            who,
-            "{\"productId\":\"" + product.getId() + "\",\"quantity\":" + quantity + "}");
-    return JsonPath.read(result.andReturn().getResponse().getContentAsString(), "$.data.items[0].id");
+    return support.addToCart(mvc, who, product, quantity);
   }
 
   private ResultActions checkout(User who, String... cartItemIds) throws Exception {

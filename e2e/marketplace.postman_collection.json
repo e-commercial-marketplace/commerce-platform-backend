@@ -1080,6 +1080,96 @@
             ],
             "url": "{{baseUrl}}/orders/{{orderId}}/received"
           }
+        },
+        {
+          "name": "Customer reviews the product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().data.rating).to.eql(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/products/{{productId}}/reviews",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"rating\":5,\"comment\":\"E2E great\"}"
+            }
+          }
+        },
+        {
+          "name": "Second review is 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 REVIEW_ALREADY_EXISTS', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('REVIEW_ALREADY_EXISTS');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/products/{{productId}}/reviews",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"rating\":4,\"comment\":\"Again\"}"
+            }
+          }
+        },
+        {
+          "name": "Product rating updated",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('1 review, average 5', () => {",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.reviewCount).to.eql(1);",
+                  "  pm.expect(Number(data.ratingAverage)).to.eql(5);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
         }
       ]
     },
@@ -1292,6 +1382,183 @@
               "raw": "{\"refreshToken\":\"{{refreshToken}}\"}"
             },
             "url": "{{baseUrl}}/auth/refresh"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Voucher at checkout",
+      "item": [
+        {
+          "name": "Admin creates a 10% voucher with one use",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('voucherCode', 'E2E' + Date.now());",
+                  "pm.collectionVariables.set('validFrom', new Date(Date.now() - 60000).toISOString());",
+                  "pm.collectionVariables.set('validTo', new Date(Date.now() + 86400000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/vouchers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"code\":\"{{voucherCode}}\",\"description\":\"E2E\",\"discountPercent\":10,\"validFrom\":\"{{validFrom}}\",\"validTo\":\"{{validTo}}\",\"usageLimit\":1}"
+            }
+          }
+        },
+        {
+          "name": "Customer checks the code (lower case)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('voucherCodeLower', pm.collectionVariables.get('voucherCode').toLowerCase());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 and the upper-case code', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data.code).to.eql(pm.collectionVariables.get('voucherCode'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/vouchers/{{voucherCodeLower}}/validate"
+          }
+        },
+        {
+          "name": "Customer adds 1 to the cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('line added', () => {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "  pm.collectionVariables.set('cartItemId', pm.response.json().data.items[0].id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cart/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"productId\":\"{{productId}}\",\"quantity\":1}"
+            }
+          }
+        },
+        {
+          "name": "Checkout with the voucher",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 with 10% off', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const data = pm.response.json().data;",
+                  "  pm.expect(data.voucherCode).to.eql(pm.collectionVariables.get('voucherCode'));",
+                  "  pm.expect(data.discountAmount).to.eql('10000.00');",
+                  "  pm.expect(data.totalAmount).to.eql('90000.00');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"cartItemIds\":[\"{{cartItemId}}\"],\"shippingAddress\":\"1 E2E Street\",\"paymentMethod\":\"COD\",\"voucherCode\":\"{{voucherCode}}\"}"
+            }
+          }
+        },
+        {
+          "name": "The only use is gone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 VOUCHER_EXHAUSTED', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('VOUCHER_EXHAUSTED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/vouchers/{{voucherCode}}/validate"
           }
         }
       ]

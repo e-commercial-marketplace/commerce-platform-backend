@@ -9,6 +9,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.HashSet;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import com.marketplace.enums.Role;
+import com.marketplace.support.TestSupport;
+import org.springframework.http.HttpHeaders;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -31,6 +34,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 class ApiPrefixTest {
 
   @Autowired private MockMvc mockMvc;
+  @Autowired private TestSupport support;
 
   // Chỉ định tường minh bean `requestMappingHandlerMapping` của WebMvc; actuator dùng handler
   // mapping riêng cho /actuator/**.
@@ -72,15 +76,17 @@ class ApiPrefixTest {
   }
 
   /**
-   * Route public dưới prefix nhưng chưa có controller phải trả 404 theo contract: security matcher
-   * đã cho qua nên request tới được DispatcherServlet, và {@code GlobalExceptionHandler} phải map
-   * thành {@code RESOURCE_NOT_FOUND} thay vì 500. Dùng review của product (Phase 8) làm ví dụ; khi
-   * Phase 8 có controller thì đổi sang route public khác chưa được triển khai.
+   * Route dưới prefix mà không có controller phải trả 404 theo contract: request đã qua security (kèm
+   * token) và tới được DispatcherServlet, và {@code GlobalExceptionHandler} phải map thành
+   * {@code RESOURCE_NOT_FOUND} thay vì 500. Mọi route GET công khai đều đã có controller từ Phase 8,
+   * nên dùng một route không tồn tại kèm token (không có token thì security trả 401 trước).
    */
   @Test
-  void unmappedPublicRouteUnderPrefixReturns404() throws Exception {
+  void unmappedRouteUnderPrefixReturns404() throws Exception {
     mockMvc
-        .perform(get("/api/v1/products/some-id/reviews"))
+        .perform(
+            get("/api/v1/no-such-route")
+                .header(HttpHeaders.AUTHORIZATION, support.bearer(support.user(Role.CUSTOMER, null))))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
   }
