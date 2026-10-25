@@ -10,6 +10,8 @@ import com.marketplace.entity.Voucher;
 import com.marketplace.mapper.VoucherMapper;
 import com.marketplace.repository.VoucherRepository;
 import com.marketplace.service.VoucherService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceException;
 import java.time.Instant;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class VoucherServiceImpl implements VoucherService {
 
   private final VoucherRepository voucherRepository;
+  private final EntityManager entityManager;
   private final VoucherMapper voucherMapper;
   private final TimeProvider timeProvider;
 
@@ -44,18 +47,26 @@ public class VoucherServiceImpl implements VoucherService {
     if (voucherRepository.existsById(code)) {
       throw duplicateCode();
     }
+    // Voucher mới, chưa dùng lần nào.
     Voucher voucher =
-        Voucher.create(
-            code,
-            request.description(),
-            request.discountPercent(),
-            request.validFrom(),
-            request.validTo(),
-            request.usageLimit());
+        Voucher.builder()
+            .code(code)
+            .description(request.description())
+            .discountPercent(request.discountPercent())
+            .validFrom(request.validFrom())
+            .validTo(request.validTo())
+            .usageLimit(request.usageLimit())
+            .build();
+    checkRules(voucher);
     try {
-      // Flush ngay: hai admin tạo cùng mã một lúc thì bên thua bật lỗi khoá chính tại đây.
-      return voucherMapper.toResponse(voucherRepository.saveAndFlush(voucher));
-    } catch (DataIntegrityViolationException e) {
+      // Khoá chính tự đặt (code) nên save() của Spring Data sẽ merge, có thể ghi đè voucher vừa được tạo
+      // cùng mã. persist() luôn INSERT; flush ngay để hai admin tạo cùng mã thì bên thua bật lỗi khoá chính.
+      entityManager.persist(voucher);
+      entityManager.flush();
+      return voucherMapper.toResponse(voucher);
+    } catch (DataIntegrityViolationException | PersistenceException e) {
+      // Gọi thẳng EntityManager (không qua repository) nên Spring không dịch lỗi: trùng khoá chính đến dạng
+      // PersistenceException của JPA; bắt cả hai để trùng mã luôn là 400.
       throw duplicateCode();
     }
   }
@@ -64,12 +75,20 @@ public class VoucherServiceImpl implements VoucherService {
   @Transactional
   public VoucherResponse update(String code, VoucherUpdateRequest request) {
     Voucher voucher = find(code);
-    voucher.update(
-        request.description(),
-        request.discountPercent(),
-        request.validFrom(),
-        request.validTo(),
-        request.usageLimit());
+    // Trường null thì giữ nguyên; code không đổi được.
+    if (request.description() != null) voucher.setDescription(request.description());
+    Integer percent = request.discountPercent();
+    if (percent != null && percent != voucher.getDiscountPercent()) {
+      // Order đã dùng voucher tính lại giảm giá theo % hiện tại khi huỷ dòng, nên đổi % sẽ đổi tổng của chúng.
+      if (voucher.getTimesUsed() > 0) {
+        throw BusinessException.validation("discountPercent cannot change after the voucher has been used");
+      }
+      voucher.setDiscountPercent(percent);
+    }
+    if (request.validFrom() != null) voucher.setValidFrom(request.validFrom());
+    if (request.validTo() != null) voucher.setValidTo(request.validTo());
+    if (request.usageLimit() != null) voucher.setUsageLimit(request.usageLimit());
+    checkRules(voucher);
     return voucherMapper.toResponse(voucher);
   }
 
@@ -77,7 +96,13 @@ public class VoucherServiceImpl implements VoucherService {
   @Transactional
   public VoucherResponse expire(String code) {
     Voucher voucher = find(code);
-    voucher.expire(timeProvider.now());
+    // Hết hạn ngay (không xoá, để giữ lịch sử). Voucher chưa bắt đầu thì lùi validFrom về ngay trước now,
+    // vì DB bắt buộc validFrom < validTo.
+    Instant now = timeProvider.now();
+    if (!voucher.getValidFrom().isBefore(now)) {
+      voucher.setValidFrom(now.minusSeconds(1));
+    }
+    voucher.setValidTo(now);
     return voucherMapper.toResponse(voucher);
   }
 
@@ -104,11 +129,23 @@ public class VoucherServiceImpl implements VoucherService {
   }
 
   private static void checkUsable(Voucher voucher, Instant now) {
-    if (voucher.isOutsideWindow(now)) {
+    // Hết hạn hoặc chưa tới ngày bắt đầu.
+    if (now.isBefore(voucher.getValidFrom()) || !now.isBefore(voucher.getValidTo())) {
       throw BusinessException.voucherExpired("Voucher is not valid at this time");
     }
-    if (voucher.isExhausted()) {
+    if (voucher.getTimesUsed() >= voucher.getUsageLimit()) {
       throw BusinessException.voucherExhausted("Voucher has no use left");
+    }
+  }
+
+  // Cùng các luật với ràng buộc CHECK của bảng vouchers (V13), báo 400 trước khi DB ném lỗi thành 500.
+  private static void checkRules(Voucher voucher) {
+    if (!voucher.getValidFrom().isBefore(voucher.getValidTo())) {
+      throw BusinessException.validation("validFrom must be before validTo");
+    }
+    if (voucher.getUsageLimit() < voucher.getTimesUsed()) {
+      throw BusinessException.validation(
+          "usageLimit cannot be below timesUsed (" + voucher.getTimesUsed() + ")");
     }
   }
 

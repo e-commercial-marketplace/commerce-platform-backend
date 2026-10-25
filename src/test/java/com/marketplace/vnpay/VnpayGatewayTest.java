@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.marketplace.config.VnpayProperties;
+import com.marketplace.enums.PaymentStatus;
+import com.marketplace.enums.PaymentMethod;
+import com.marketplace.enums.OrderStatus;
 import com.marketplace.entity.Order;
 import com.marketplace.entity.Payment;
 import java.math.BigDecimal;
@@ -59,8 +62,8 @@ class VnpayGatewayTest {
   @Test
   void theLinkNeverOutlivesTheOrderDeadline() {
     Instant now = Instant.parse("2026-10-22T10:00:00Z"); // 17:00 giờ Việt Nam
-    Order order = Order.place(null, "A", now);
-    Payment payment = Payment.pendingVnpay(order, "txn1");
+    Order order = Order.builder().customer(null).shippingAddress("A").createdAt(now).status(OrderStatus.PENDING).totalAmount(new BigDecimal("0.00")).build();
+    Payment payment = Payment.builder().order(order).method(PaymentMethod.VNPAY).status(PaymentStatus.PENDING).amount(order.getTotalAmount()).transactionId("txn1").build();
 
     // Còn xa hạn: link sống đủ 15 phút.
     String normal = gateway.buildPaymentUrl(payment, "1.2.3.4", now, now.plus(Duration.ofHours(1)));

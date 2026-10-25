@@ -1,6 +1,5 @@
 package com.marketplace.entity;
 
-import com.marketplace.common.exception.BusinessException;
 import com.marketplace.enums.DeliveryMethod;
 import com.marketplace.enums.ShipmentStatus;
 import jakarta.persistence.CascadeType;
@@ -18,35 +17,27 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
  * Một đợt giao hàng của một seller cho một order (mỗi cặp order và seller chỉ có một shipment). Gom
- * nguyên các dòng hàng đã CONFIRMED của seller đó. Trạng thái chỉ đổi qua {@link #moveTo}.
+ * nguyên các dòng hàng đã CONFIRMED của seller đó. Trạng thái chỉ đổi qua ShipmentService.
  */
 @Entity
 @Table(name = "shipments")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Shipment {
-
-  /** Các bước được phép đi tiếp từ mỗi trạng thái (theo contract shipment); trạng thái khác là điểm cuối. */
-  private static final Map<ShipmentStatus, Set<ShipmentStatus>> NEXT = new EnumMap<>(ShipmentStatus.class);
-
-  static {
-    NEXT.put(ShipmentStatus.PENDING, Set.of(ShipmentStatus.PREPARING, ShipmentStatus.CANCELLED));
-    NEXT.put(ShipmentStatus.PREPARING, Set.of(ShipmentStatus.SHIPPED, ShipmentStatus.CANCELLED));
-    NEXT.put(ShipmentStatus.SHIPPED, Set.of(ShipmentStatus.DELIVERED, ShipmentStatus.FAILED));
-    NEXT.put(ShipmentStatus.FAILED, Set.of(ShipmentStatus.RETURNED));
-  }
 
   @Id
   @GeneratedValue
@@ -87,52 +78,6 @@ public class Shipment {
   private Carrier carrier;
 
   @OneToMany(mappedBy = "shipment", cascade = CascadeType.ALL, orphanRemoval = true)
+  @Builder.Default
   private List<ShipmentOrderItem> shipmentItems = new ArrayList<>();
-
-  /**
-   * Tạo shipment PENDING gom các dòng hàng đã kiểm tra (cùng order, cùng seller, đã CONFIRMED). Phí ship
-   * cố định 0.00 như checkout.
-   */
-  public static Shipment create(
-      Order order, User seller, DeliveryMethod method, Carrier carrier, List<OrderItem> items) {
-    Shipment shipment = new Shipment();
-    shipment.order = order;
-    shipment.seller = seller;
-    shipment.deliveryMethod = method;
-    shipment.carrier = carrier;
-    shipment.status = ShipmentStatus.PENDING;
-    shipment.shippingFee = BigDecimal.ZERO.setScale(2);
-    items.forEach(item -> shipment.shipmentItems.add(ShipmentOrderItem.of(shipment, item)));
-    return shipment;
-  }
-
-  /**
-   * Chuyển sang trạng thái mới nếu được phép, ngược lại 400. SHIPPED bắt buộc có mã vận đơn và ghi lúc
-   * gửi; DELIVERED ghi lúc giao. Việc trả kho, huỷ dòng hay hoàn tất order do service làm sau bước này.
-   */
-  public void moveTo(ShipmentStatus target, String trackingCode, Instant now) {
-    if (!NEXT.getOrDefault(status, Set.of()).contains(target)) {
-      throw BusinessException.validation("Cannot move a shipment from " + status + " to " + target);
-    }
-    if (target == ShipmentStatus.SHIPPED) {
-      if (trackingCode == null || trackingCode.isBlank()) {
-        throw BusinessException.validation("trackingCode is required to mark a shipment SHIPPED");
-      }
-      this.trackingCode = trackingCode.trim();
-      shippedAt = now;
-    }
-    if (target == ShipmentStatus.DELIVERED) {
-      deliveredAt = now;
-    }
-    status = target;
-  }
-
-  public boolean isDelivered() {
-    return status == ShipmentStatus.DELIVERED;
-  }
-
-  /** Các dòng hàng của shipment này. */
-  public List<OrderItem> orderItems() {
-    return shipmentItems.stream().map(ShipmentOrderItem::getOrderItem).toList();
-  }
 }

@@ -14,6 +14,7 @@ import com.marketplace.repository.UserRepository;
 import com.marketplace.service.AuthService;
 import com.marketplace.service.JwtService;
 import com.marketplace.service.RefreshTokenService;
+import com.marketplace.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
   private final PasswordEncoder passwordEncoder; // băm mật khẩu và so khớp mật khẩu
   private final JwtService jwtService; // tạo access token
   private final RefreshTokenService refreshTokenService; // tạo/thu hồi refresh token
+  private final UserService userService; // tạo user mới theo luật chung (seller chờ duyệt)
   private final UserMapper userMapper; // đổi User sang thông tin trả cho client (không có mật khẩu)
 
   // @Transactional: các thao tác DB trong hàm là một khối, có lỗi thì hoàn tác hết, không ghi nửa chừng.
@@ -53,7 +55,7 @@ public class AuthServiceImpl implements AuthService {
     }
     // Bước 5: tạo người dùng mới. Mật khẩu được băm TRƯỚC khi lưu, không bao giờ lưu mật khẩu thô.
     User user =
-        User.register(
+        userService.newUser(
             email, passwordEncoder.encode(request.password()), request.name().trim(), role);
     try {
       // Bước 6: lưu vào DB. Flush ngay để vi phạm unique (hai request đăng ký cùng email song song) bật ra tại đây.

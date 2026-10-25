@@ -1,6 +1,5 @@
 package com.marketplace.entity;
 
-import com.marketplace.common.exception.BusinessException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -11,7 +10,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -22,7 +22,9 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "products")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Product {
 
   @Id
@@ -46,6 +48,7 @@ public class Product {
   private int stock;
 
   @Column(name = "rating_average", nullable = false, precision = 3, scale = 2)
+  @Builder.Default
   private BigDecimal ratingAverage = BigDecimal.ZERO;
 
   @Column(name = "review_count", nullable = false)
@@ -61,35 +64,4 @@ public class Product {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "seller_id", nullable = false)
   private User seller;
-
-  /** Tạo product mới ở trạng thái đang bán ({@code active = true}), chưa có đánh giá. */
-  public static Product create(
-      String name,
-      String description,
-      String imageUrl,
-      BigDecimal price,
-      int stock,
-      Category category,
-      User seller) {
-    Product product = new Product();
-    product.name = name;
-    product.description = description;
-    product.imageUrl = imageUrl;
-    product.price = price;
-    product.stock = stock;
-    product.category = category;
-    product.seller = seller;
-    product.active = true;
-    return product;
-  }
-
-  /**
-   * Product phải còn bán, nếu không thì lỗi 400 PRODUCT_INACTIVE. Quy tắc này dùng chung cho giỏ hàng
-   * và checkout, nên đặt ngay trên product thay vì chép lại ở từng service.
-   */
-  public void ensureActive() {
-    if (!active) {
-      throw BusinessException.productInactive("Product is no longer available: " + name);
-    }
-  }
 }

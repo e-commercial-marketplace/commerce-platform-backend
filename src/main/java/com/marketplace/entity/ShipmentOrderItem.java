@@ -7,9 +7,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Whole-line mapping; partial quantities and split shipments are not modeled in this MVP.
@@ -18,11 +20,15 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "shipment_order_items")
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ShipmentOrderItem {
 
   // @MapsId: Hibernate tự điền hai phần của khoá từ shipment và orderItem lúc lưu.
   @EmbeddedId
+  @Builder.Default
   private ShipmentOrderItemId id = new ShipmentOrderItemId();
 
   @MapsId("shipmentId")
@@ -34,12 +40,4 @@ public class ShipmentOrderItem {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "order_item_id", nullable = false, unique = true)
   private OrderItem orderItem;
-
-  /** Gán nguyên một dòng hàng vào shipment. */
-  static ShipmentOrderItem of(Shipment shipment, OrderItem orderItem) {
-    ShipmentOrderItem mapping = new ShipmentOrderItem();
-    mapping.shipment = shipment;
-    mapping.orderItem = orderItem;
-    return mapping;
-  }
 }

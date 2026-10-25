@@ -78,14 +78,16 @@ public class SellerProductServiceImpl implements SellerProductService {
     Category category = findCategory(request.categoryId());
     // Bước 3: tạo product. sellerId lấy từ token chứ không nhận từ client, nên không ai tạo hộ người khác được.
     Product product =
-        Product.create(
-            request.name().trim(),
-            request.description(),
-            request.imageUrl(),
-            request.price(),
-            request.stock(),
-            category,
-            seller);
+        Product.builder()
+            .name(request.name().trim())
+            .description(request.description())
+            .imageUrl(request.imageUrl())
+            .price(request.price())
+            .stock(request.stock())
+            .category(category)
+            .seller(seller)
+            .active(true)
+            .build();
     // Bước 4: mặc định product đang bán; chỉ khi client gửi rõ "active": false mới tạo ở trạng thái ẩn.
     if (Boolean.FALSE.equals(request.active())) {
       product.setActive(false);

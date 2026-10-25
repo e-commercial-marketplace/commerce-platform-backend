@@ -101,7 +101,7 @@ class SellerShopApiTest {
   /** Tạo và lưu một product thuộc seller, đang bán hoặc đã ẩn. */
   private void product(User owner, Category category, String name, boolean active) {
     Product product =
-        Product.create(name, "d", null, new BigDecimal("10.00"), 1, category, owner);
+        Product.builder().name(name).description("d").imageUrl(null).price(new BigDecimal("10.00")).stock(1).category(category).seller(owner).active(true).build();
     product.setActive(active);
     products.save(product);
   }

@@ -40,7 +40,7 @@ public class CategoryServiceImpl implements CategoryService {
     }
     try {
       // Bước 3: lưu ngay (flush) để nếu hai request tạo cùng tên một lúc thì lỗi unique bật ra tại đây.
-      return categoryMapper.toSummary(categoryRepository.saveAndFlush(Category.create(name)));
+      return categoryMapper.toSummary(categoryRepository.saveAndFlush(Category.builder().name(name).build()));
     } catch (DataIntegrityViolationException e) {
       throw duplicateName();
     }

@@ -296,7 +296,7 @@ class AuthIntegrationTest {
 
   private User saveUser(Role role) {
     return userRepository.save(
-        User.register(randomEmail(), passwordEncoder.encode(PASSWORD), "Probe " + role, role));
+        User.builder().email(randomEmail()).passwordHash(passwordEncoder.encode(PASSWORD)).fullName("Probe " + role).role(role).sellerStatus(role == Role.SELLER ? SellerStatus.PENDING : null).build());
   }
 
   private String tokenFor(Role role) {

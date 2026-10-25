@@ -1,6 +1,5 @@
 package com.marketplace.entity;
 
-import com.marketplace.common.util.VietnamesePhone;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import jakarta.persistence.Column;
@@ -14,7 +13,8 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,7 +25,9 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "users")
 @Getter
 @Setter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
   @Id
@@ -57,6 +59,7 @@ public class User {
   private SellerStatus sellerStatus;
 
   @Column(name = "enabled", nullable = false)
+  @Builder.Default
   private boolean enabled = true;
 
   @Column(name = "created_at", nullable = false, updatable = false)
@@ -75,31 +78,5 @@ public class User {
   @PreUpdate
   void onUpdate() {
     updatedAt = Instant.now();
-  }
-
-  /** Tạo user mới; rule "SELLER đăng ký thì PENDING" nằm ở đây để mọi luồng tạo user đều áp dụng. */
-  public static User register(String email, String passwordHash, String fullName, Role role) {
-    User u = new User();
-    u.email = email;
-    u.passwordHash = passwordHash;
-    u.fullName = fullName;
-    u.role = role;
-    u.sellerStatus = role == Role.SELLER ? SellerStatus.PENDING : null;
-    return u;
-  }
-
-  /**
-   * Đổi thông tin liên hệ, dùng chung cho người dùng tự sửa và admin sửa. Tham số {@code null} thì giữ
-   * nguyên; chuỗi rỗng thì xoá. Số điện thoại lưu dạng {@code 0xxxxxxxxx}; giá trị phải đã qua kiểm tra
-   * ở request.
-   */
-  public void updateContact(String phone, String address) {
-    if (phone != null) {
-      this.phone = VietnamesePhone.normalize(phone);
-    }
-    if (address != null) {
-      String trimmed = address.trim();
-      this.address = trimmed.isEmpty() ? null : trimmed;
-    }
   }
 }

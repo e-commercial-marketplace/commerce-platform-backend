@@ -98,4 +98,11 @@ public class ProductServiceImpl implements ProductService {
       case RATING_DESC, RELEVANCE -> Sort.by(Sort.Order.desc("ratingAverage")).and(byId);
     };
   }
+
+  @Override
+  public void ensureActive(Product product) {
+    if (!product.isActive()) {
+      throw BusinessException.productInactive("Product is no longer available: " + product.getName());
+    }
+  }
 }

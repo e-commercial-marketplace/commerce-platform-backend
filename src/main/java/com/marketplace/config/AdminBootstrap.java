@@ -1,6 +1,6 @@
 package com.marketplace.config;
 
-import com.marketplace.entity.User;
+import com.marketplace.service.UserService;
 import com.marketplace.enums.Role;
 import com.marketplace.repository.UserRepository;
 import java.util.Locale;
@@ -24,6 +24,7 @@ public class AdminBootstrap implements ApplicationRunner {
 
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
+  private final UserService userService;
 
   @Value("${app.admin.email:}")
   private String email;
@@ -39,7 +40,7 @@ public class AdminBootstrap implements ApplicationRunner {
     }
     String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
     userRepository.save(
-        User.register(
+        userService.newUser(
             normalizedEmail, passwordEncoder.encode(password), "Administrator", Role.ADMIN));
     log.info("Bootstrapped initial admin account {}", normalizedEmail);
   }

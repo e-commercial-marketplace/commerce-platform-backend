@@ -11,9 +11,11 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.UUID;
-import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -24,7 +26,10 @@ import org.hibernate.annotations.UuidGenerator;
 @Table(name = "reviews", uniqueConstraints = @UniqueConstraint(
     name = "uq_reviews_user_product", columnNames = {"user_id", "product_id"}))
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Review {
 
   @Id
@@ -48,14 +53,4 @@ public class Review {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "product_id", nullable = false)
   private Product product;
-
-  public static Review create(User user, Product product, int rating, String comment, Instant now) {
-    Review review = new Review();
-    review.user = user;
-    review.product = product;
-    review.rating = rating;
-    review.comment = comment;
-    review.createdAt = now;
-    return review;
-  }
 }

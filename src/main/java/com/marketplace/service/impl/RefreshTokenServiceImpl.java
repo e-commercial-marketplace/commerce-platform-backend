@@ -49,7 +49,8 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     Instant expiresAt = timeProvider.now().plusMillis(jwtProperties.refreshExpirationMs());
     // Bước 4: lưu vào DB chỉ bản băm SHA-256 của token, KHÔNG lưu token thô.
     // Nếu DB bị lộ, kẻ xấu cũng không dùng lại được token.
-    refreshTokenRepository.save(RefreshToken.issue(user, sha256(rawToken), expiresAt));
+    refreshTokenRepository.save(
+        RefreshToken.builder().user(user).tokenHash(sha256(rawToken)).expiresAt(expiresAt).build());
     // Bước 5: trả token thô cho client; đây là lần duy nhất token thô tồn tại ngoài bộ nhớ.
     return rawToken;
   }
@@ -66,7 +67,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     // Bước 2: lấy người dùng sở hữu token. Đọc user trước câu UPDATE bên dưới để lazy proxy được nạp trong cùng persistence context.
     User user = token.getUser();
     // Bước 3: token phải còn dùng được (chưa bị thu hồi, chưa hết hạn) và tài khoản không bị khoá.
-    if (!token.isUsable(now) || !user.isEnabled()) {
+    if (token.getRevokedAt() != null || !token.getExpiresAt().isAfter(now) || !user.isEnabled()) {
       throw invalidToken();
     }
     // Bước 4: thu hồi token. Câu UPDATE trả về số dòng bị đổi: 1 = mình vừa thu hồi thành công,

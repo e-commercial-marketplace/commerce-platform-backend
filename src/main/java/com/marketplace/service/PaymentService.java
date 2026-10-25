@@ -27,13 +27,26 @@ public interface PaymentService {
   /** Xử lý kết quả VNPAY gửi về; IPN và Return URL dùng chung hàm này, gọi lặp không đổi gì thêm. */
   VnpayResult handleVnpayResult(Map<String, String> params);
 
+  /** Tạo payment COD chờ thu tiền khi giao, số tiền bằng tổng hiện tại của order. */
+  void openCod(Order order);
+
+  /** Order trả trước qua VNPAY (có hạn 24 giờ); order COD thì thu tiền khi giao, không có hạn. */
+  boolean isPrepayment(Order order);
+
+  /** Order đã có một lần thanh toán COMPLETED. */
+  boolean hasCompletedPayment(Order order);
+
+  /** Đã quá hạn thanh toán trước 24 giờ tính từ lúc đặt. */
+  boolean isPastDeadline(Order order, Instant now);
+
   /**
-   * Huỷ order trả trước đã quá hạn 24 giờ: huỷ các dòng còn lại, trả kho đúng một lần, payment đang chờ
-   * thành FAILED. Kiểm lại điều kiện sau khi khoá order; không còn quá hạn thì không làm gì.
-   *
-   * @return {@code true} nếu order vừa bị huỷ
+   * Gọi sau khi tổng order đổi vì huỷ dòng. Payment đang chờ: COD nhận tổng mới (thu lúc giao); VNPAY
+   * thành FAILED vì link đã gửi mang số tiền cũ. Order đã CANCELLED thì mọi payment đang chờ đều FAILED.
    */
-  boolean cancelExpiredOrder(UUID orderId, Instant now);
+  void syncPendingPayments(Order order);
+
+  /** Order đã giao đủ: payment COD đang chờ được ghi nhận đã thu. VNPAY đã COMPLETED từ lúc trả tiền. */
+  void completeCod(Order order, Instant now);
 
   /**
    * Kết quả xử lý một lần VNPAY gửi về.
