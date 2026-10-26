@@ -13,9 +13,12 @@ Bổ sung cho test MockMvc trong `src/test` (chạy trên H2), không thay thế
 | 3. Seller onboarding | Đăng ký seller (PENDING) bị chặn 403, admin duyệt, admin tạo category, seller tạo sản phẩm (kho 5), seller chỉ thấy đơn vị đang hoạt động |
 | 4. COD purchase to COMPLETED | Giỏ 2 cái, checkout COD, kho còn 3, seller xác nhận, shipment với đơn vị đã tắt 400, tạo shipment, huỷ dòng đã gán shipment 409, PREPARING, SHIPPED thiếu mã 400, SHIPPED, DELIVERED, order DELIVERED và COD đã thu, khách xác nhận nhận hàng thành COMPLETED, xác nhận lại 400 |
 | 5. Seller cancellation | Checkout 1 cái, seller huỷ dòng, order CANCELLED và payment FAILED, kho về 3, logout, refresh sau logout 401 |
+| 6. Voucher at checkout | Admin tạo voucher 10% một lượt, khách kiểm tra mã (chữ thường), checkout có voucher, mã hết lượt 409 |
+| 7. Cleanup | Seller ẩn sản phẩm E2E (không xoá), trang công khai của sản phẩm trả 404 |
 
 Mỗi lần chạy tự tạo customer, seller, category, sản phẩm và đơn vị vận chuyển mới (tên có dấu thời
-gian), nên chạy lại nhiều lần không xung đột. Chỉ cần sẵn **một tài khoản ADMIN**.
+gian), nên chạy lại nhiều lần không xung đột. Bước cuối ẩn sản phẩm vừa tạo, để DB local không đầy
+sản phẩm "E2E Phone" đang bán (chúng làm sai kết quả tìm kiếm và trợ lý AI). Chỉ cần sẵn **một tài khoản ADMIN**.
 
 Không bao phủ: VNPAY (cần trang thanh toán sandbox, đã có test chữ ký trong `PaymentApiTest`), quên mật
 khẩu qua email, job nền (24 giờ, tự hoàn tất 3 ngày).

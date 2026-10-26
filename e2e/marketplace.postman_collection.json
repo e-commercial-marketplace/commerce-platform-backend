@@ -1562,6 +1562,53 @@
           }
         }
       ]
+    },
+    {
+      "name": "7. Cleanup",
+      "item": [
+        {
+          "name": "Seller hides the E2E product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Ẩn (không xoá) sản phẩm vừa tạo, để các lần chạy sau không để lại sản phẩm đang bán trong DB local.",
+                  "pm.test('204, product hidden', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sellerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/seller/products/{{productId}}"
+          }
+        },
+        {
+          "name": "Hidden product is 404 publicly",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 for a hidden product', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        }
+      ]
     }
   ],
   "variable": []

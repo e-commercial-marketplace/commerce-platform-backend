@@ -88,7 +88,9 @@ public class SecurityConfig {
     API + "/payments/**",
     API + "/vouchers/**",
     // Chỉ POST (tạo đánh giá) rơi vào đây: GET đã được PUBLIC_GET ở trên cho qua trước.
-    API + "/products/*/reviews"
+    API + "/products/*/reviews",
+    // Lịch sử trò chuyện với trợ lý AI chỉ dành cho customer (POST /ai/ask thì công khai).
+    API + "/ai/sessions/**"
   };
 
   /** Chỉ seller. Trạng thái APPROVED không nằm trong token nên service kiểm tra thêm trong DB. */

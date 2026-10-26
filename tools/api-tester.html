@@ -211,6 +211,7 @@
       <input id="searchInput" type="search" placeholder="Tìm sản phẩm theo tên hoặc mô tả" autocomplete="off">
       <button class="btn-primary" type="submit" aria-label="Tìm kiếm"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></button>
     </form>
+    <a class="btn" href="#/ai">Trợ lý AI</a>
     <nav class="nav-right" id="navRight" aria-label="Tài khoản"></nav>
   </div>
 </header>
@@ -592,6 +593,7 @@ async function route() {
     else if (a === "register") viewRegister(ctx);
     else if (a === "forgot-password") viewForgotPassword(ctx);
     else if (a === "account") await viewAccount(ctx);
+    else if (a === "ai") await viewAi(ctx);
     else if (a === "seller" && b === "orders") await viewSellerOrders(ctx, query);
     else if (a === "seller" && b === "shipments") await viewSellerShipments(ctx, query);
     else if (a === "seller") await viewSeller(ctx);
@@ -608,6 +610,93 @@ async function route() {
    ===================================================================== */
 
 /* ---------- Trang chủ: danh mục, bộ lọc, lưới sản phẩm ---------- */
+async function viewAi(ctx) {
+  if (state.user && state.user.role !== "CUSTOMER") return ctx.mount(emptyState("Trợ lý AI dành cho khách hàng",
+    "Backend chỉ cho guest và CUSTOMER sử dụng AI. Hãy đăng xuất hoặc dùng tài khoản customer.",
+    h("a", { class: "btn", href: "#/" }, "Về trang chủ")));
+  const customer = Boolean(state.user && state.user.role === "CUSTOMER");
+  let sessionId = null, busy = false;
+  const sessions = h("select", { id: "aiSessions", "aria-label": "Cuộc trò chuyện" }, h("option", { value: "" }, "Cuộc trò chuyện mới"));
+  const historyError = h("div", { role: "alert", class: "error-text" });
+  const chat = h("div", { class: "cart-list", role: "log", "aria-label": "Tin nhắn", "aria-live": "polite", style: "margin:16px 0" });
+  const results = h("div", {});
+  const message = h("textarea", { required: true, maxlength: "1000", placeholder: "Tìm tai nghe dưới 2 triệu, từ 4 sao" });
+  const err = h("div", { class: "error-text", role: "alert" });
+  const submit = h("button", { class: "btn-primary", type: "submit" }, "Gửi câu hỏi");
+  const setBusy = (value) => {
+    busy = value; sessions.disabled = value; submit.disabled = value; message.disabled = value;
+    submit.textContent = value ? "Đang xử lý…" : "Gửi câu hỏi";
+    chat.setAttribute("aria-busy", String(value));
+  };
+  const unauthorized = (r) => {
+    if (r.status !== 401 || !customer) return false;
+    clearSession(); navigate("/login", { next: "/ai" }); return true;
+  };
+  const appendMessage = (role, content, createdAt) => chat.append(h("article", { class: "card pad" },
+    h("strong", {}, role === "USER" ? "Bạn" : role === "SYSTEM" ? "Hệ thống" : "Trợ lý"),
+    createdAt ? h("span", { class: "small muted" }, " · " + dateTime(createdAt)) : null,
+    h("p", { style: "white-space:pre-wrap;overflow-wrap:anywhere" }, content)));
+  async function loadSessions() {
+    const r = await api("GET", "/ai/sessions");
+    if (ctx.id !== routeId || unauthorized(r)) return;
+    if (!r.ok) { historyError.replaceChildren(errorBox(r, loadSessions)); return; }
+    historyError.replaceChildren();
+    put(sessions, h("option", { value: "" }, "Cuộc trò chuyện mới"), r.data.data.map((session) =>
+      h("option", { value: session.id }, dateTime(session.createdAt) + " · " + shortId(session.id))));
+    sessions.value = sessionId || "";
+  }
+  sessions.addEventListener("change", async () => {
+    if (busy) return;
+    sessionId = sessions.value || null;
+    chat.replaceChildren(); results.replaceChildren(); err.textContent = "";
+    if (!sessionId) return;
+    setBusy(true);
+    const r = await api("GET", "/ai/sessions/" + encodeURIComponent(sessionId) + "/messages");
+    if (ctx.id !== routeId || unauthorized(r)) return;
+    setBusy(false);
+    if (!r.ok) {
+      err.textContent = errMsg(r); sessionId = null; sessions.value = ""; return;
+    }
+    r.data.data.forEach((turn) => appendMessage(turn.role, turn.content, turn.createdAt));
+  });
+  const form = h("form", { onsubmit: async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const text = message.value.trim();
+    if (!text) { err.textContent = "Hãy nhập câu hỏi."; return; }
+    err.textContent = ""; setBusy(true);
+    // Không tự gửi lại POST: refresh thất bại không được biến lượt hỏi customer thành lượt guest.
+    const r = await api("POST", "/ai/ask", { auth: customer, retry: false, body: { message: text, sessionId: customer ? sessionId : null } });
+    if (ctx.id !== routeId || unauthorized(r)) return;
+    setBusy(false);
+    if (!r.ok) {
+      err.textContent = r.status === 429 ? "Đã vượt giới hạn câu hỏi. Hãy chờ khoảng một phút rồi thử lại." : errMsg(r);
+      return;
+    }
+    const answer = r.data.data;
+    sessionId = customer ? answer.sessionId : null;
+    // Giữ lựa chọn hiện tại ngay cả khi lần tải lại danh sách session bên dưới thất bại.
+    if (sessionId) {
+      if (![...sessions.options].some((option) => option.value === sessionId)) {
+        sessions.append(h("option", { value: sessionId }, "Cuộc trò chuyện · " + shortId(sessionId)));
+      }
+      sessions.value = sessionId;
+    }
+    appendMessage("USER", text); appendMessage("ASSISTANT", answer.answer);
+    message.value = "";
+    put(results, h("p", { class: "hint" }, "Nguồn trả lời: " + answer.answeredBy + (answer.answeredBy === "RULES" ? " — bộ luật dự phòng, không dùng mô hình AI." : "")),
+      answer.query ? h("details", {}, h("summary", {}, "Bộ lọc backend đã dùng"), h("pre", { style: "white-space:pre-wrap" }, JSON.stringify(answer.query, null, 2))) : null,
+      answer.products.length ? h("div", { class: "grid" }, answer.products.map(productCard)) : null);
+    if (customer) await loadSessions();
+  } }, field("Câu hỏi", message, "Tối đa 1000 ký tự. Chỉ tư vấn và tìm sản phẩm theo VND; không thay đổi đơn hàng."), err, submit);
+  ctx.mount(h("section", {}, h("h1", {}, "Trợ lý AI"),
+    h("p", { class: "hint" }, customer ? "Cuộc trò chuyện được lưu cho tài khoản customer; backend nhớ 20 tin nhắn gần nhất."
+      : "Chế độ guest không lưu lịch sử trên backend và mỗi câu hỏi độc lập. Đăng nhập customer để tiếp tục hội thoại."),
+    h("p", { class: "hint" }, "Tối đa 60 câu hỏi/phút; từ câu 21 dùng bộ luật dự phòng. Khi chưa cấu hình AI hoặc nhà cung cấp lỗi, backend vẫn trả lời bằng RULES."),
+    customer ? field("Cuộc trò chuyện", sessions) : null, historyError, chat, form, results));
+  if (customer) await loadSessions();
+}
+
 async function viewHome(ctx, q) {
   // Bộ lọc đang áp dụng, đọc từ địa chỉ để có thể chia sẻ và quay lại bằng nút Back.
   const f = { q: q.get("q") || "", categoryId: q.get("categoryId") || "", minPrice: q.get("minPrice") || "", maxPrice: q.get("maxPrice") || "",
