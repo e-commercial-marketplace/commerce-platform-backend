@@ -1,6 +1,26 @@
-# Marketplace Backend — Phase 0 Foundation
+# Marketplace Backend
 
-Modular monolith: Spring Boot 3.4.4 + Java 21 + PostgreSQL 16 (pgvector) + Flyway.
+Modular monolith: Spring Boot 3.4.4 + Java 21 + PostgreSQL 16 (pgvector) + Flyway, with an optional
+Redis read cache and an AI shopping assistant (Spring AI).
+
+The design documents live in the separate `docs` repository (`API_CONTRACT.md`, `features/*/API_CONTRACT.md`,
+SRS, architecture). The contracts are written first; this code follows them.
+
+## What is implemented
+
+| Area | What the backend does |
+|---|---|
+| Auth and users | Register, login, refresh-token rotation, logout, forgot/reset password by emailed code, profile; roles `CUSTOMER`, `SELLER`, `ADMIN`; admin user management and seller approval |
+| Catalog | Public product search and detail, categories (admin-managed), seller shop page, seller product management |
+| Cart and checkout | Cart per customer, checkout of the selected lines into one order (stock decreased atomically, several sellers in one order), voucher at checkout |
+| Order flow | `PENDING` → `PAID` → `DELIVERED` → `COMPLETED`, or `CANCELLED`; seller confirms or cancels lines; customer confirms receipt (auto-complete after 3 days) |
+| Payment | COD and VNPAY (sandbox): signed payment URL, IPN and return handling, retry, 24-hour deadline job |
+| Shipment | Admin-managed carriers, per-seller shipments with a status machine, stock restored on return |
+| Voucher and review | Platform vouchers (percent, usage limit, window) and product reviews with a rating aggregate |
+| AI assistant | `POST /ai/ask`: LLM with read-only tools (`listCategories`, `searchProducts`), per-session chat memory (last 10 messages), rule-based fallback, per-minute limits |
+| Cache | Optional Redis cache for cart lines, the category list and seller shop pages |
+
+Not implemented yet: human chat (WebSocket), RAG over policies/FAQ, Google login.
 
 ## Tech stack
 
@@ -9,7 +29,7 @@ Modular monolith: Spring Boot 3.4.4 + Java 21 + PostgreSQL 16 (pgvector) + Flywa
 - Java 21
 - Spring Boot 3.4.4
 - Maven 3.9+
-- Docker 24+ with Docker Compose v2 for the local PostgreSQL/pgvector container and the backend API image
+- Docker 24+ with Docker Compose v2 for the local PostgreSQL/pgvector and Redis containers and the backend API image
 - Multi-stage `Dockerfile`: Maven build stage (JDK 21) + Temurin 21 JRE Alpine runtime, non-root user
 
 ### API and application
@@ -18,38 +38,39 @@ Modular monolith: Spring Boot 3.4.4 + Java 21 + PostgreSQL 16 (pgvector) + Flywa
 - Spring Validation for request validation
 - Springdoc OpenAPI 2.7.0 for Swagger/OpenAPI documentation
 - Spring Boot Actuator for health and operational endpoints
-- Spring WebSocket for the planned human-chat flow
+- Spring Scheduling for the background jobs (expired VNPAY orders every 5 minutes, auto-complete of delivered orders every hour)
+- Spring Cache and Spring Data Redis for the optional read cache
+- Spring AI 1.0.3 (OpenAI-compatible client) for the assistant
 
 ### Persistence and security
 
 - PostgreSQL 16 with the `pgvector/pgvector:pg16` image
 - Spring Data JPA/Hibernate for persistence
-- Lombok for entity boilerplate (getters/setters and protected JPA no-args constructors)
+- Lombok: entities are plain data classes (`@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder`
+  plus `@PrePersist`/`@PreUpdate` timestamps); business rules live in the services
 - MapStruct 1.6.3 for entity/DTO mapping (annotation processor wired with Lombok through `lombok-mapstruct-binding`)
 - Flyway for versioned database migrations
-- Spring Security for authentication and authorization
+- Spring Security (stateless) for authentication and authorization
 - JJWT 0.12.6 for JWT processing
 
 ### Testing
 
-- Spring Boot Test and JUnit 5
+- Spring Boot Test and JUnit 5, Mockito
 - Spring Security Test
-- Testcontainers PostgreSQL for integration-test infrastructure
-- H2 for the current test profile
-
-Spring AI, pgvector vector tables, and feature-specific integrations are planned in later phases;
-the current backend scaffold does not claim that those features are fully implemented.
+- H2 in `PostgreSQL` mode for the `test` profile (no database or secret needed)
+- Postman CLI end-to-end journeys against the local Docker stack (`e2e/`)
 
 ## Prereqs
 
 - Java 21, Maven 3.9+, Docker 24+ (Compose v2)
+- Optional: Postman CLI for the end-to-end run
 
 ## Configuration
 
 ### Runtime values
 
 `src/main/resources/application.yml` is the only runtime configuration file; the environment-specific
-values come from environment variables:
+values come from environment variables. Only the first four are required.
 
 | Variable | Required | Purpose |
 |---|---|---|
@@ -60,6 +81,14 @@ values come from environment variables:
 | `DB_NAME` | Compose only | Database name used by the Compose Postgres service and by the *default* JDBC URL when `DB_URL` is not set |
 | `APP_JWT_ACCESS_EXPIRATION_MS` | no | Access-token lifetime in ms; default `900000` (15 minutes) |
 | `APP_JWT_REFRESH_EXPIRATION_MS` | no | Refresh-token lifetime in ms; default `604800000` (7 days) |
+| `APP_ADMIN_EMAIL`, `APP_ADMIN_PASSWORD` | no | Create the first admin at startup when the database has none (skipped when empty). Never commit real values |
+| `APP_CORS_ALLOWED_ORIGIN_PATTERNS` | no | Browser origins allowed to call the API, comma separated; empty means none |
+| `APP_MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `APP_MAIL_FROM` | no | SMTP for the password-reset email. With `APP_MAIL_ENABLED=false` (default) the code is only written to the log, for local development |
+| `APP_VNPAY_TMN_CODE`, `APP_VNPAY_HASH_SECRET` | for VNPAY | Sandbox merchant credentials from the VNPAY registration email. Never commit real values |
+| `APP_VNPAY_PAY_URL`, `APP_VNPAY_RETURN_URL`, `APP_VNPAY_APP_REDIRECT_URL` | no | VNPAY payment page, the URL VNPAY sends the browser back to (use the deployed domain in production), and the app deep link opened afterwards |
+| `REDIS_URL` | no | Redis connection, for example `redis://localhost:6379`. On Render use the *internal* Key Value URL |
+| `APP_CACHE_ENABLED` | no | `true` turns on the Redis read cache; default `false` (every read goes to PostgreSQL) |
+| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | no | OpenAI-compatible provider for the assistant (OpenAI, DeepSeek, Groq, OpenRouter...). `AI_BASE_URL` has no `/v1` suffix. Without `AI_API_KEY` the assistant answers with rules only |
 | `JPA_SHOW_SQL` | no | Log Hibernate SQL; default `false` |
 
 For local runs, copy `.env.example` to `.env` (same folder as this README) and adjust the values.
@@ -85,11 +114,51 @@ DB_PASSWORD=change-me
 
 Two consequences worth knowing:
 
-- `docker compose up` still starts the local `postgres` service (the API waits for its healthcheck)
-  even when `DB_URL` points outside Compose. To run the API container alone:
+- `docker compose up` starts the local `postgres` and `redis` services (the API waits for the Postgres
+  healthcheck) even when `DB_URL` points outside Compose. To run the API container alone:
   `docker compose up -d --no-deps backend`.
 - A `DB_URL` containing `localhost` resolves to whichever machine runs the process. From inside a
   container use `host.docker.internal` instead.
+
+Note that the Compose `backend` service **always** uses the Compose Postgres and Redis (`DB_URL` and
+`REDIS_URL` are overridden in `docker-compose.yml`), so a `.env` that points at Supabase or at a
+Render Redis never leaks into the local stack.
+
+### Redis read cache
+
+Redis is only a cache: PostgreSQL is always the source of truth and the API works without Redis.
+
+| Cache | Key | Lifetime | Cleared after commit when |
+|---|---|---|---|
+| Cart lines | `cart:<userId>` (Hash of product id, quantity, created time) | 30 minutes | the customer changes the cart or checks out |
+| Category list | `categories::all` | 1 hour | an admin creates, renames or deletes a category |
+| Seller shop page | `sellerShops::<sellerId>` | 10 minutes | the seller changes products or name, or an admin edits, approves or suspends the seller |
+
+Products are not cached (price and stock change too often), and the cart cache never stores prices or
+stock. When Redis is down the backend logs a warning and reads PostgreSQL. Redis is left out of
+`/actuator/health`. Inspect it locally with `docker exec marketplace-redis redis-cli --scan`. On Render,
+create a Key Value instance in the same region (policy `allkeys-lru`), then set `REDIS_URL` to its internal
+URL and `APP_CACHE_ENABLED=true`. Set `APP_CACHE_ENABLED=false` to turn the cache off without a deploy.
+
+### AI assistant
+
+`POST /api/v1/ai/ask` is public. Customers get a saved session (`GET /ai/sessions`,
+`GET /ai/sessions/{id}/messages`) and the model remembers the last 10 messages; guests are stateless.
+
+The assistant answers **without the LLM** (`answeredBy = RULES`: price/rating/category parsing, canned FAQ
+answers, hints) when `AI_API_KEY` is empty, when the provider fails, while the provider asked the backend to
+wait after an HTTP 429, and after 20 questions in a minute. After 60 questions in a minute the request is
+rejected with `429 RATE_LIMITED`. The counters live in memory, so they fit a single instance.
+
+Example with DeepSeek:
+
+```dotenv
+AI_BASE_URL=https://api.deepseek.com
+AI_API_KEY=<your key>
+AI_MODEL=deepseek-chat
+```
+
+The key is read only by the backend and never returned by any endpoint.
 
 ### API version prefix
 
@@ -102,10 +171,10 @@ use the prefixed URLs.
 
 ## Run
 
-### Option A — API in a container (recommended with Docker)
+### Option A — whole stack in containers (recommended with Docker)
 
 ```powershell
-# Build the API image from Dockerfile and start Postgres + API
+# Build the API image from Dockerfile and start Postgres + Redis + API
 docker compose up -d --build
 
 # Follow API logs (Flyway migrations run on startup)
@@ -116,24 +185,23 @@ curl http://localhost:8080/actuator/health
 # http://localhost:8080/swagger-ui.html
 ```
 
-Compose starts Postgres first (health-gated), then the API. Database and JWT values come from
-`backend/.env` when the file exists, otherwise from the local defaults baked into `docker-compose.yml`
-(database `marketplace`, user/password `marketplace`). When `DB_URL` points at a managed database
-(Supabase/Neon), the local Postgres service is unused — run `docker compose up -d --no-deps backend`
-to skip it. The API runs as the non-root `app` user and exposes the actuator healthcheck declared in
-the `Dockerfile`.
+Compose starts Postgres first (health-gated), then Redis and the API. Other values (JWT, VNPAY, mail,
+admin, CORS, AI) come from `backend/.env` when the file exists, otherwise from the defaults baked into
+`docker-compose.yml`. The local cache is switched on by default (`APP_CACHE_ENABLED=true` in Compose).
+The Compose Postgres uses database `marketplace`, user/password `marketplace`, published on
+`127.0.0.1:5432`; Redis is not published to the host. The API runs as the non-root `app` user and
+exposes the actuator healthcheck declared in the `Dockerfile`.
 
-Running both the API container and the Compose Postgres while `.env` holds a `localhost` `DB_URL` does
-not work: `localhost` inside a container is that container itself, so use
-`DB_URL=jdbc:postgresql://host.docker.internal:5432/marketplace` instead (see `.env.example`).
+When `DB_URL` in `.env` points at a managed database, Compose still ignores it for the container (see
+above); use `mvn spring-boot:run` (Option B) to run against that database.
 
 ### Option B — DB in a container, API on the host
 
 ```powershell
 # 1. Create the local environment file (first time only)
 Copy-Item .env.example .env
-# 2. Start DB only
-docker compose up -d postgres
+# 2. Start DB (and Redis if you set REDIS_URL and APP_CACHE_ENABLED=true)
+docker compose up -d postgres redis
 # 3. Run API (uses DB_URL from .env — the same variable the container gets)
 mvn spring-boot:run
 # 4. Health
@@ -141,6 +209,9 @@ curl http://localhost:8080/actuator/health
 # 5. Swagger
 # http://localhost:8080/swagger-ui.html
 ```
+
+Redis is not published to the host in `docker-compose.yml`; to use it from `mvn spring-boot:run`, leave
+`APP_CACHE_ENABLED` unset (no cache) or point `REDIS_URL` at a Redis you run yourself.
 
 ### Useful commands
 
@@ -159,27 +230,41 @@ docker build -t marketplace-backend:local .   # build the API image without Comp
 - V1: `users`
 - V2..V11: historical placeholders (do not rewrite after Flyway has recorded them)
 - V12: refresh-token hashes and revocation metadata
-- V13: remaining domain tables represented by JPA entities
+- V13: remaining domain tables represented by JPA entities (catalog, cart, orders, payments, vouchers,
+  shipments, reviews, human chat and persisted AI chat)
+- V14: password-reset codes
+- V15: `cart_items.created_at`
+- V16: carriers (`shipments.carrier_id`)
+- V17: order status `COMPLETED`
 
 Once a migration has been applied, add a new version instead of editing it to avoid Flyway checksum
-mismatches. V13 adds optional `phone` and `address` columns to `users` and creates catalog, cart,
-order/payment/voucher/shipment, review, human-chat, and persisted AI-chat tables.
+mismatches.
 
-Development seed data lives in `seed/` — see `seed/README.md`. It is not a Flyway migration and never
-runs automatically.
+Development seed data (accounts, categories, products with real images, carriers, vouchers) lives in
+`seed/` — see `seed/README.md`. It is not a Flyway migration and never runs automatically.
 
 ## Package layout
 
 Layered under `com.marketplace` (all features share each layer; class names identify the feature):
 
 `config`, `controller`, `service` (+ `impl`), `repository`, `entity`, `enums`, `dto/{request,response}`,
-`mapper`, `security`, `websocket`, `vnpay`, `ai/{tools,rag,memory}`, and `common/{config,response,exception,util}`
-for classes shared by every feature.
+`mapper`, `security`, `websocket`, `vnpay`, `ai/{tools,rules,memory,rag}`, and
+`common/{config,response,exception,util,validation}` for classes shared by every feature.
 
-`config` holds the auth setup (`SecurityConfig` with the JWT filter wiring, `JwtProperties`, `AdminBootstrap`);
-`security` holds the JWT filter and the 401/403 handlers. `common/config` holds `WebConfig` (central `/api/v1`
-prefix for REST controllers) and `OpenApiConfig`, `common/response` holds `ApiResponse` and `PageResponse`,
-`common/exception` holds the shared exceptions and `GlobalExceptionHandler`, and `common/util` holds `TimeProvider`.
+- `config` holds the auth setup (`SecurityConfig` with the JWT filter wiring, `JwtProperties`, `AdminBootstrap`),
+  the VNPAY and mail properties, and `CacheConfig` (Spring Cache on Redis).
+- `security` holds the JWT filter and the 401/403 handlers.
+- `repository` also holds `CartCache`, the Redis copy of the cart lines.
+- `ai/tools` has the read-only tools and the shared product search, `ai/rules` the rule-based answerer,
+  `ai/memory` the chat memory over `ai_messages`; `ai/` itself has the rate limiter and the provider
+  cooldown. `ai/rag` is reserved for the RAG phase.
+- `common/config` holds `WebConfig` (central `/api/v1` prefix) and `OpenApiConfig`, `common/response` holds
+  `ApiResponse` and `PageResponse`, `common/exception` the shared exceptions and `GlobalExceptionHandler`,
+  `common/util` helpers such as `TimeProvider`, and `common/validation` the request annotations.
+
+Conventions: controllers return `ResponseEntity<ApiResponse<T>>`; response classes end in `Response`;
+entities are mapped to responses with MapStruct; business rules sit in the owning service (for example
+order totals in `OrderService`), never in entities.
 
 ## Tests
 
@@ -187,3 +272,18 @@ prefix for REST controllers) and `OpenApiConfig`, `common/response` holds `ApiRe
 mvn test
 mvn verify
 ```
+
+The unit and integration tests run on H2 and need no Docker. The GitHub Actions workflow runs
+`mvn verify` on pull requests into `main`.
+
+### End-to-end journeys (Postman CLI)
+
+`e2e/` holds a Postman collection that walks the main journeys against the **local Docker stack**
+(auth, carriers, seller onboarding, COD purchase to `COMPLETED`, seller cancellation, voucher at
+checkout). Start the stack with `docker compose up -d --build`, then:
+
+```powershell
+postman collection run e2e/marketplace.postman_collection.json -e e2e/local.postman_environment.json --env-var "adminPassword=<admin password>"
+```
+
+The admin password is passed at run time and is never stored. Details are in `e2e/README.md`.
