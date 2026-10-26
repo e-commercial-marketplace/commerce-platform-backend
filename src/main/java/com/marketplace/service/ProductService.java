@@ -6,6 +6,7 @@ import com.marketplace.dto.request.ProductSearchRequest;
 import com.marketplace.dto.response.ProductResponse;
 import com.marketplace.dto.response.ProductSummaryResponse;
 import com.marketplace.entity.Product;
+import java.util.Set;
 import java.util.UUID;
 
 /** Nghiệp vụ product của catalog. */
@@ -26,4 +27,7 @@ public interface ProductService {
 
   /** Product đã ngừng bán thì 409 PRODUCT_INACTIVE; dùng khi thêm vào giỏ và khi checkout. */
   void ensureActive(Product product);
+
+  /** Id các category đang có product đang bán (để trợ lý AI không giới thiệu category rỗng). */
+  Set<UUID> categoryIdsWithListedProducts();
 }

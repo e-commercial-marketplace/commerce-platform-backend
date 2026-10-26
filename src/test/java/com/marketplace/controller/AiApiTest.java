@@ -13,11 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import com.marketplace.ai.ProviderCooldown;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.AiChatSessionRepository;
 import com.marketplace.support.TestSupport;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +38,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -54,6 +57,7 @@ class AiApiTest {
   @Autowired private TestSupport support;
   @Autowired private AiChatSessionRepository sessions;
   @MockitoBean private ChatModel chatModel;
+  @Autowired private ProviderCooldown cooldown;
 
   private User customer;
   private String guestIp; // mỗi test một IP, để bộ đếm hạn mức của guest không dồn giữa các test
@@ -63,6 +67,20 @@ class AiApiTest {
     customer = support.user(Role.CUSTOMER, null);
     guestIp = "10.0." + (int) (Math.random() * 250) + "." + (int) (Math.random() * 250);
     when(chatModel.call(any(Prompt.class))).thenAnswer(call -> reply("AI answer"));
+    // Bean dùng chung cả context: xoá thời gian nghỉ do test 429 để lại.
+    ReflectionTestUtils.setField(cooldown, "until", Instant.EPOCH);
+  }
+
+  @Test
+  void afterAProvider429TheBackendSkipsTheProviderForTheWaitItAskedFor() throws Exception {
+    when(chatModel.call(any(Prompt.class)))
+        .thenThrow(new RuntimeException("HTTP 429 - Rate limit reached. Please try again in 20s."));
+    askAsGuest("{\"message\":\"xin chào\"}").andExpect(jsonPath("$.data.answeredBy").value("RULES"));
+    verify(chatModel, times(1)).call(any(Prompt.class));
+
+    // Đang nghỉ: không gọi provider nữa, trả lời bằng luật ngay.
+    askAs(customer, "{\"message\":\"xin chào\"}").andExpect(jsonPath("$.data.answeredBy").value("RULES"));
+    verify(chatModel, times(1)).call(any(Prompt.class));
   }
 
   // ---------- trả lời bằng LLM ----------

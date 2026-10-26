@@ -66,6 +66,20 @@ class RuleBasedAnswererTest {
   }
 
   @Test
+  void aRangeCanShareOneUnitAndBudgetWordsAreIgnored() {
+    // "10 - 20 triệu": số đầu dùng chung đơn vị "triệu" với số sau; "ngân sách của tôi" không phải từ khoá.
+    for (String question : new String[] {"10 - 20 triệu", "ngân sách của tôi từ 10 - 20 triệu", "từ 10 đến 20 triệu"}) {
+      RuleAnswer answer = answerer.answer(question);
+      assertThat(answer.query().minPrice().toPlainString()).isEqualTo("10000000.00");
+      assertThat(answer.query().maxPrice().toPlainString()).isEqualTo("20000000.00");
+      assertThat(answer.query().text()).isNull();
+    }
+    // Sản phẩm trả về có số tồn kho, để "còn hàng không" trả lời được từ dữ liệu.
+    assertThat(answerer.answer("10 - 20 triệu").products()).allSatisfy(p -> assertThat(p.stock()).isNotNegative());
+    assertThat(answerer.answer("còn hàng không").answer()).contains("chưa nhớ được");
+  }
+
+  @Test
   void readsSortAndAnswersFromTheResults() {
     RuleAnswer answer = answerer.answer("tai nghe " + tag + " rẻ nhất");
     assertThat(answer.query().sort()).isEqualTo("price_asc");
@@ -111,7 +125,8 @@ class RuleBasedAnswererTest {
 
     assertThat(answerer.answer("xin chào").answer()).startsWith("Xin chào");
     assertThat(answerer.answer("tai nghe dưới 50 usd").answer()).contains("VND");
-    assertThat(answerer.answer("zzqq").answer()).contains("chưa tìm thấy");
+    // Chỉ có chữ lạ, không bộ lọc: gợi ý cách hỏi thay vì "chưa tìm thấy 'zzqq'".
+    assertThat(answerer.answer("zzqq").answer()).startsWith("Mình chưa hiểu");
     assertThat(answerer.answer("???").answer()).startsWith("Mình chưa hiểu");
   }
 
@@ -119,10 +134,14 @@ class RuleBasedAnswererTest {
   void theSharedSearchNormalisesUntrustedArgumentsAndTheToolKeepsTheLastResult() {
     ProductSearchTools tools = new ProductSearchTools(productSearch);
     // Giá âm bị bỏ, rating kẹp về 5, sort lạ bỏ, min > max thì đổi chỗ.
-    tools.searchProducts("tai nghe " + tag, -1.0, null, 9.0, "random");
+    tools.searchProducts("tai nghe " + tag, null, -1.0, null, 9.0, "random");
     assertThat(tools.lastResult().query().minPrice()).isNull();
     assertThat(tools.lastResult().query().minRating()).isEqualByComparingTo("5");
     assertThat(tools.lastResult().query().sort()).isNull();
+    // Giá model gửi dạng số thực (1.0E7) vẫn ra 2 chữ số thập phân như mọi số tiền khác.
+    tools.searchProducts(null, null, 10_000_000.0, 20_000_000.0, null, null);
+    assertThat(tools.lastResult().query().minPrice().toString()).isEqualTo("10000000.00");
+    assertThat(tools.lastResult().query().maxPrice().toString()).isEqualTo("20000000.00");
 
     var swapped = productSearch.search("tai nghe " + tag, null, new BigDecimal("5000000"), new BigDecimal("1000000"), null, null);
     assertThat(swapped.query().minPrice()).isEqualByComparingTo("1000000");
@@ -130,6 +149,39 @@ class RuleBasedAnswererTest {
 
     // Tối đa 5 product.
     assertThat(productSearch.search(null, null, null, null, null, null).products()).hasSizeLessThanOrEqualTo(5);
+  }
+
+  @Test
+  void handlesBrowsingComplaintsAndReferencesToEarlierAnswers() {
+    // Muốn xem shop có gì: danh mục và vài sản phẩm nổi bật (có cả danh mục của test này).
+    for (String question : new String[] {"Cửa hàng có gì ?", "liệt kê sản phẩm ra trước", "tôi muốn mua hàng"}) {
+      RuleAnswer browse = answerer.answer(question);
+      assertThat(browse.answer()).startsWith("Shop đang bán các nhóm:").contains(phones.getName());
+      assertThat(browse.products()).isNotEmpty();
+    }
+    // Còn tên món cụ thể thì vẫn đi tìm món đó.
+    assertThat(names(answerer.answer("muốn mua galaxy " + tag))).containsExactly("Galaxy " + tag);
+
+    assertThat(answerer.answer("sao bạn trả lời tệ thế").answer()).startsWith("Xin lỗi bạn");
+    assertThat(answerer.answer("cái đầu tiên giá bao nhiêu?").answer()).contains("chưa nhớ được");
+  }
+
+  @Test
+  void theToolListsCategoriesAndFiltersByCategoryName() {
+    ProductSearchTools tools = new ProductSearchTools(productSearch);
+    // Danh mục rỗng (không có product đang bán) không được giới thiệu.
+    Category empty = categories.save(Category.builder().name("Rỗng " + tag).build());
+    assertThat(tools.listCategories()).contains(phones.getName()).doesNotContain(empty.getName());
+
+    // Tên danh mục không phân biệt hoa thường; query trả lại tên danh mục đã lọc.
+    tools.searchProducts(null, phones.getName().toUpperCase(), null, null, null, null);
+    assertThat(tools.lastResult().products()).extracting(AiProductResponse::name).containsExactly("Galaxy " + tag);
+    assertThat(tools.lastResult().query().category()).isEqualTo(phones.getName());
+
+    // Tên danh mục model tự bịa: không lọc danh mục, dùng tên đó làm từ khoá thay vì trả rỗng.
+    tools.searchProducts(null, "galaxy " + tag, null, null, null, null);
+    assertThat(tools.lastResult().query().category()).isNull();
+    assertThat(tools.lastResult().products()).extracting(AiProductResponse::name).containsExactly("Galaxy " + tag);
   }
 
   private static java.util.List<String> names(RuleAnswer answer) {

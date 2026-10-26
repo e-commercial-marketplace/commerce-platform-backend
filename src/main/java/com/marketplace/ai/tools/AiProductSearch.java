@@ -3,12 +3,16 @@ package com.marketplace.ai.tools;
 import com.marketplace.dto.request.ProductSearchRequest;
 import com.marketplace.dto.response.AiProductQueryResponse;
 import com.marketplace.dto.response.AiProductResponse;
+import com.marketplace.dto.response.CategorySummaryResponse;
 import com.marketplace.mapper.AiMapper;
+import com.marketplace.service.CategoryService;
 import com.marketplace.service.ProductService;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -28,13 +32,48 @@ public class AiProductSearch {
   private static final BigDecimal MAX_RATING = BigDecimal.valueOf(5);
 
   private final ProductService productService;
+  private final CategoryService categoryService;
   private final AiMapper aiMapper;
 
   /** Lần tìm đã chạy (sau chuẩn hoá) và kết quả. */
   public record Result(AiProductQueryResponse query, List<AiProductResponse> products) {}
 
+  /**
+   * Tên các danh mục đang có product đang bán, theo thứ tự tên. Danh mục rỗng (mọi product đã ẩn) không được
+   * giới thiệu cho khách.
+   */
+  public List<String> categoryNames() {
+    var listed = productService.categoryIdsWithListedProducts();
+    return categoryService.listAll().stream()
+        .filter(c -> listed.contains(c.id()))
+        .map(CategorySummaryResponse::name)
+        .toList();
+  }
+
+  /**
+   * Danh mục theo tên model hoặc người dùng đưa ra: trùng tên (không phân biệt hoa thường) trước, không có
+   * thì danh mục có tên chứa cụm đó ("tai nghe" → "Tai nghe & Loa").
+   */
+  public Optional<CategorySummaryResponse> findCategory(String name) {
+    if (name == null || name.isBlank()) {
+      return Optional.empty();
+    }
+    String wanted = name.trim().toLowerCase(Locale.ROOT);
+    List<CategorySummaryResponse> all = categoryService.listAll();
+    return all.stream()
+        .filter(c -> c.name().toLowerCase(Locale.ROOT).equals(wanted))
+        .findFirst()
+        .or(() -> all.stream().filter(c -> c.name().toLowerCase(Locale.ROOT).contains(wanted)).findFirst());
+  }
+
+  /** @param category danh mục để lọc, {@code null} thì không lọc */
   public Result search(
-      String text, UUID categoryId, BigDecimal minPrice, BigDecimal maxPrice, BigDecimal minRating, String sort) {
+      String text,
+      CategorySummaryResponse category,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      BigDecimal minRating,
+      String sort) {
     // Bước 1: chuẩn hoá. Giá âm bỏ đi; min > max thì đổi chỗ (search sẽ báo 400); rating kẹp trong 0..5;
     // sort lạ quy về mặc định.
     String q = text == null || text.isBlank() ? null : text.trim();
@@ -51,15 +90,19 @@ public class AiProductSearch {
     // Bước 2: tìm trang đầu, tối đa LIMIT product đang bán.
     List<AiProductResponse> products =
         productService
-            .search(new ProductSearchRequest(q, categoryId, null, min, max, rating, order, 0, LIMIT))
+            .search(
+                new ProductSearchRequest(
+                    q, category == null ? null : category.id(), null, min, max, rating, order, 0, LIMIT))
             .content()
             .stream()
             .map(aiMapper::toProduct)
             .toList();
-    return new Result(new AiProductQueryResponse(q, min, max, rating, order), products);
+    String categoryName = category == null ? null : category.name();
+    return new Result(new AiProductQueryResponse(q, categoryName, min, max, rating, order), products);
   }
 
+  /** Bỏ số âm; giá luôn 2 chữ số thập phân như mọi số tiền của API (model gửi 1.0E7 thì ra 10000000.00). */
   private static BigDecimal nonNegative(BigDecimal value) {
-    return value == null || value.signum() < 0 ? null : value;
+    return value == null || value.signum() < 0 ? null : value.setScale(2, RoundingMode.HALF_UP);
   }
 }

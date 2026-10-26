@@ -32,8 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AiChatMemory implements ChatMemory {
 
-  /** Số tin gần nhất đưa cho model (khoảng 10 lượt hỏi đáp). */
-  public static final int WINDOW = 20;
+  /**
+   * Số tin gần nhất đưa cho model (khoảng 5 lượt hỏi đáp). Ít để mỗi câu hỏi tốn ít token: gói free của
+   * provider thường giới hạn số token mỗi phút. Đổi số này thì đổi cả {@code findTop10...} trong repository.
+   */
+  public static final int WINDOW = 10;
 
   private final AiMessageRepository messageRepository;
   private final AiChatSessionRepository sessionRepository;
@@ -71,7 +74,7 @@ public class AiChatMemory implements ChatMemory {
   @Transactional(readOnly = true)
   public List<Message> get(String conversationId) {
     List<AiMessage> newestFirst =
-        new ArrayList<>(messageRepository.findTop20BySessionIdOrderByCreatedAtDesc(UUID.fromString(conversationId)));
+        new ArrayList<>(messageRepository.findTop10BySessionIdOrderByCreatedAtDesc(UUID.fromString(conversationId)));
     Collections.reverse(newestFirst);
     return newestFirst.stream().map(AiChatMemory::toMessage).toList();
   }

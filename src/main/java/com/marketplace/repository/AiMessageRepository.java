@@ -11,8 +11,11 @@ public interface AiMessageRepository extends JpaRepository<AiMessage, UUID> {
   /** Toàn bộ lịch sử, cũ nhất trước (để hiển thị). */
   List<AiMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 
-  /** 20 tin mới nhất, mới nhất trước; chat memory đảo lại để đưa cho model theo thứ tự thời gian. */
-  List<AiMessage> findTop20BySessionIdOrderByCreatedAtDesc(UUID sessionId);
+  /**
+   * 10 tin mới nhất ({@code AiChatMemory.WINDOW}), mới nhất trước; chat memory đảo lại để đưa cho model
+   * theo thứ tự thời gian.
+   */
+  List<AiMessage> findTop10BySessionIdOrderByCreatedAtDesc(UUID sessionId);
 
   void deleteBySessionId(UUID sessionId);
 }

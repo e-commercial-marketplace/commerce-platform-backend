@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -86,7 +85,9 @@ public class RuleBasedAnswerer {
           "tìm", "kiếm", "cho", "tôi", "mình", "em", "anh", "chị", "bạn", "muốn", "cần", "mua", "xem",
           "có", "nào", "gì", "giá", "sản", "phẩm", "loại", "cái", "chiếc", "với", "và", "ạ", "nhé", "nha",
           "shop", "khoảng", "tầm", "những", "các", "một", "hãy", "gợi", "ý", "giúp", "thế", "như", "sao",
-          "làm", "được", "bao", "nhiêu", "đi", "đ", "đồng", "vnd", "vnđ", "thì", "là", "ở", "đâu", "nhỉ", "vậy");
+          "làm", "được", "bao", "nhiêu", "đi", "đ", "đồng", "vnd", "vnđ", "thì", "là", "ở", "đâu", "nhỉ", "vậy",
+          // từ hay đi kèm câu "xem shop có gì": "cửa hàng có gì", "liệt kê sản phẩm ra trước"
+          "ngân", "sách", "của", "cửa", "hàng", "ra", "trước", "đang", "hiện", "tại", "bên", "đây", "nay", "hôm");
 
   // ---------- câu trả lời có sẵn ----------
 
@@ -127,9 +128,30 @@ public class RuleBasedAnswerer {
   private static final String FOREIGN_CURRENCY_ANSWER =
       "Hiện marketplace chỉ dùng tiền Việt Nam (VND). Bạn nhập khoảng giá bằng VND giúp mình nhé, ví dụ "
           + "\"dưới 2 triệu\".";
-  private static final String HINT =
-      "Mình chưa hiểu câu hỏi. Bạn có thể hỏi như: \"tìm tai nghe dưới 2 triệu\", \"điện thoại từ 4 sao\" "
-          + "hoặc \"thanh toán thế nào\".";
+  private static final String EXAMPLES =
+      "\"tìm tai nghe dưới 2 triệu\", \"laptop rẻ nhất\" hoặc \"thanh toán thế nào\"";
+  private static final String HINT = "Mình chưa hiểu câu hỏi. Bạn có thể hỏi như: " + EXAMPLES + ".";
+
+  // ---------- câu trò chuyện ----------
+
+  /** Muốn xem shop có gì (không nói rõ món nào): trả danh mục và vài sản phẩm nổi bật. */
+  private static final List<String> BROWSE =
+      List.of("có gì", "bán gì", "có những gì", "bán những gì", "liệt kê", "muốn mua", "xem hàng", "có bán");
+
+  /** Chê câu trả lời: xin lỗi ngắn gọn rồi đưa ví dụ cách hỏi. */
+  private static final List<String> COMPLAINTS = List.of("tệ", "dở", "kém", "ngu", "chán", "tồi");
+
+  /** Nhắc tới câu trả lời trước: chế độ trả lời bằng luật không có trí nhớ, nên nói thẳng điều đó. */
+  private static final List<String> REFERENCES =
+      List.of(
+          "cái đầu tiên", "cái thứ", "cái đó", "cái này", "cái trên", "sản phẩm trên", "món đó", "còn hàng");
+
+  private static final String COMPLAINT_ANSWER =
+      "Xin lỗi bạn, trợ lý đang ở chế độ tìm nhanh nên trả lời còn hạn chế. Bạn thử hỏi cụ thể hơn, ví dụ "
+          + EXAMPLES + ".";
+  private static final String REFERENCE_ANSWER =
+      "Trợ lý đang ở chế độ tìm nhanh nên chưa nhớ được các câu trước. Bạn gõ lại tên sản phẩm giúp mình, ví "
+          + "dụ \"giá MacBook Air M2\".";
 
   /** Số lần tìm tối đa cho một câu (cả cụm rồi từng từ), để một câu hỏi không tạo quá nhiều query. */
   private static final int MAX_ATTEMPTS = 6;
@@ -154,7 +176,23 @@ public class RuleBasedAnswerer {
     Faq faq = FAQS.stream().filter(q -> q.keywords().stream().anyMatch(k -> contains(message, k))).findFirst().orElse(null);
     List<String> words = keywords(rest);
 
-    // Bước 3: có từ khoá chủ đề quen thuộc mà không có bộ lọc sản phẩm → câu có sẵn. Các chữ còn lại
+    // Bước 3a: câu trò chuyện (chỉ khi không có bộ lọc sản phẩm). Chê bai và nhắc câu trước được trả lời
+    // thẳng; muốn xem shop có gì thì trả danh mục và vài sản phẩm nổi bật, trừ khi còn tên món cụ thể
+    // ("muốn mua iphone" vẫn đi tìm "iphone").
+    String left = rest; // phần câu còn lại sau khi tách bộ lọc (biến final để dùng trong lambda)
+    if (!f.any()) {
+      if (COMPLAINTS.stream().anyMatch(w -> contains(left, w))) {
+        return new RuleAnswer(COMPLAINT_ANSWER, null, List.of());
+      }
+      if (REFERENCES.stream().anyMatch(w -> contains(left, w))) {
+        return new RuleAnswer(REFERENCE_ANSWER, null, List.of());
+      }
+      if (BROWSE.stream().anyMatch(w -> contains(left, w)) && keywords(removeAll(left, BROWSE)).isEmpty()) {
+        return browse();
+      }
+    }
+
+    // Bước 3b: có từ khoá chủ đề quen thuộc mà không có bộ lọc sản phẩm → câu có sẵn. Các chữ còn lại
     // ("voucher dùng sao", "có giao hàng tận nơi không") thường chỉ là cách hỏi, không phải tên sản phẩm.
     if (faq != null && !f.any()) {
       return new RuleAnswer(faq.answer(), null, List.of());
@@ -165,7 +203,7 @@ public class RuleBasedAnswerer {
       AiProductSearch.Result first = null;
       for (String text : candidates(words)) {
         AiProductSearch.Result result =
-            productSearch.search(text, f.categoryId, f.minPrice, f.maxPrice, f.minRating, f.sort);
+            productSearch.search(text, f.category, f.minPrice, f.maxPrice, f.minRating, f.sort);
         if (first == null) {
           first = result;
         }
@@ -173,7 +211,10 @@ public class RuleBasedAnswerer {
           return new RuleAnswer(found(result.products(), f), result.query(), result.products());
         }
       }
-      return new RuleAnswer(notFound(f, String.join(" ", words)), first.query(), List.of());
+      // Có bộ lọc thì nói rõ không có gì khớp bộ lọc đó; chỉ có chữ thì nhiều khả năng là câu ta chưa hiểu
+      // ("trả lời tệ"), nên gợi ý cách hỏi thay vì "không tìm thấy 'trả lời tệ'".
+      String answer = f.any() ? notFound(f, String.join(" ", words)) : HINT;
+      return new RuleAnswer(answer, first.query(), List.of());
     }
 
     // Bước 5: không hiểu gì.
@@ -188,11 +229,10 @@ public class RuleBasedAnswerer {
     BigDecimal maxPrice;
     BigDecimal minRating;
     String sort;
-    UUID categoryId;
-    String categoryName;
+    CategorySummaryResponse category;
 
     boolean any() {
-      return minPrice != null || maxPrice != null || minRating != null || sort != null || categoryId != null;
+      return minPrice != null || maxPrice != null || minRating != null || sort != null || category != null;
     }
   }
 
@@ -209,7 +249,9 @@ public class RuleBasedAnswerer {
   private static String parsePrices(String rest, Filters f) {
     Matcher range = RANGE.matcher(rest);
     if (range.find()) {
-      BigDecimal low = amount(range.group(1), range.group(2));
+      // "10 - 20 triệu": số đầu không có đơn vị thì dùng chung đơn vị với số sau.
+      String lowUnit = range.group(2) != null ? range.group(2) : range.group(4);
+      BigDecimal low = amount(range.group(1), lowUnit);
       BigDecimal high = amount(range.group(3), range.group(4));
       if (low != null && high != null) {
         f.minPrice = low;
@@ -279,8 +321,7 @@ public class RuleBasedAnswerer {
     aliases.sort(Comparator.comparingInt((Alias a) -> a.text().length()).reversed());
     for (Alias alias : aliases) {
       if (contains(rest, alias.text())) {
-        f.categoryId = alias.category().id();
-        f.categoryName = alias.category().name();
+        f.category = alias.category();
         return removeAll(rest, List.of(alias.text()));
       }
     }
@@ -333,6 +374,24 @@ public class RuleBasedAnswerer {
     return "Mình tìm được " + products.size() + " sản phẩm" + describe(f) + ":\n" + list;
   }
 
+  /** Shop bán những nhóm nào, kèm vài sản phẩm được đánh giá cao nhất. */
+  private RuleAnswer browse() {
+    AiProductSearch.Result top = productSearch.search(null, null, null, null, null, null);
+    StringBuilder answer =
+        new StringBuilder("Shop đang bán các nhóm: ")
+            .append(String.join(", ", productSearch.categoryNames()))
+            .append('.');
+    if (!top.products().isEmpty()) {
+      answer.append(" Một vài sản phẩm nổi bật:\n");
+      answer.append(
+          top.products().stream()
+              .map(p -> "- " + p.name() + ": " + vnd(p.price()) + rating(p))
+              .collect(Collectors.joining("\n")));
+    }
+    answer.append("\nBạn muốn xem nhóm nào, hoặc tìm trong khoảng giá bao nhiêu?");
+    return new RuleAnswer(answer.toString(), top.query(), top.products());
+  }
+
   private static String notFound(Filters f, String text) {
     String what = text.isBlank() ? "" : " cho \"" + text + "\"";
     return "Mình chưa tìm thấy sản phẩm nào" + what + describe(f)
@@ -342,8 +401,8 @@ public class RuleBasedAnswerer {
   /** Mô tả bộ lọc bằng lời, ví dụ " thuộc Điện thoại, giá dưới 5.000.000 ₫, từ 4 sao". */
   private static String describe(Filters f) {
     List<String> parts = new ArrayList<>();
-    if (f.categoryName != null) {
-      parts.add("thuộc " + f.categoryName);
+    if (f.category != null) {
+      parts.add("thuộc " + f.category.name());
     }
     if (f.minPrice != null && f.maxPrice != null) {
       parts.add("giá từ " + vnd(f.minPrice) + " đến " + vnd(f.maxPrice));

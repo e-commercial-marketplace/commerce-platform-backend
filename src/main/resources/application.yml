@@ -47,6 +47,8 @@ spring:
       chat:
         options:
           model: ${AI_MODEL:gpt-4o-mini}
+          # Thấp để model bám kết quả tool, ít "sáng tác".
+          temperature: 0.3
     # Chỉ dùng chat; không dựng các model embedding, ảnh, âm thanh, kiểm duyệt của starter.
     model:
       embedding: none

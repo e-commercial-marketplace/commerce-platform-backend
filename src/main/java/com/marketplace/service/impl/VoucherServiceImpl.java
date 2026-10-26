@@ -13,6 +13,7 @@ import com.marketplace.service.VoucherService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -97,8 +98,9 @@ public class VoucherServiceImpl implements VoucherService {
   public VoucherResponse expire(String code) {
     Voucher voucher = find(code);
     // Hết hạn ngay (không xoá, để giữ lịch sử). Voucher chưa bắt đầu thì lùi validFrom về ngay trước now,
-    // vì DB bắt buộc validFrom < validTo.
-    Instant now = timeProvider.now();
+    // vì DB bắt buộc validFrom < validTo. Cắt xuống micro giây: DB chỉ lưu tới micro giây và làm tròn, nếu
+    // để nano giây thì validTo lưu có thể lớn hơn now một chút và voucher còn dùng được ngay sau khi hết hạn.
+    Instant now = timeProvider.now().truncatedTo(ChronoUnit.MICROS);
     if (!voucher.getValidFrom().isBefore(now)) {
       voucher.setValidFrom(now.minusSeconds(1));
     }

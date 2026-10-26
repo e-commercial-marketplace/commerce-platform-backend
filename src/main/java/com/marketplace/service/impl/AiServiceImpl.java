@@ -1,6 +1,7 @@
 package com.marketplace.service.impl;
 
 import com.marketplace.ai.AiRateLimiter;
+import com.marketplace.ai.ProviderCooldown;
 import com.marketplace.ai.memory.AiChatMemory;
 import com.marketplace.ai.rules.RuleBasedAnswerer;
 import com.marketplace.ai.rules.RuleBasedAnswerer.RuleAnswer;
@@ -42,15 +43,40 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AiServiceImpl implements AiService {
 
-  /** Luật cho model: chỉ nói dựa trên kết quả tool, không bịa, tiền là VND. */
+  /**
+   * Luật cho model. Viết bằng tiếng Anh vì model làm theo hướng dẫn tiếng Anh ổn định hơn, nhưng dặn trả
+   * lời bằng ngôn ngữ của người dùng. Có ví dụ mẫu để model chủ động dùng tool thay vì chỉ hỏi lại.
+   */
   static final String SYSTEM_PROMPT =
       """
-      You are the shopping assistant of a Vietnamese online marketplace. Answer in the user's language.
-      - For any question about products, prices or stock, call the searchProducts tool and answer only
-        from its results. Never invent products, prices, stock or ratings.
-      - Prices are in VND. If the user gives another currency, ask them to use VND; do not convert.
-      - If the tool returns nothing, say so and suggest other keywords or a wider price range.
-      - You cannot place, change or cancel orders. Keep answers short.
+      You are the friendly shopping assistant of a Vietnamese online marketplace.
+
+      Language: reply in the user's language (Vietnamese when they write Vietnamese). Be warm and short.
+
+      Tools (read-only):
+      - listCategories: the category names the shop sells.
+      - searchProducts(text, category, minPrice, maxPrice, minRating, sort): at most 5 listed products.
+
+      Rules:
+      1. Be proactive. Never answer only with a question when a tool can help.
+         - "I want to buy something", "what do you sell?", "show me products": call listCategories AND
+           searchProducts with no filters, then show a few categories and the products, and ask what they
+           need.
+         - A product type ("headphones", "laptop", "điện thoại"): call searchProducts with the matching
+           category from listCategories and/or text.
+         - A price or rating ("dưới 2 triệu", "từ 4 sao"): put it in minPrice/maxPrice/minRating.
+           "rẻ nhất" means sort=price_asc, "đắt nhất" sort=price_desc, "tốt nhất" sort=rating_desc.
+      2. Answer only from tool results. Never invent products, prices, stock, ratings or categories.
+         If a search returns nothing, say so and offer a wider search (another category or price range).
+      2b. Availability: every product has a stock number (units left). Use it to answer "còn hàng không":
+          stock 0 means sold out; otherwise say it is available (mention the number when it is 5 or less).
+          If the question is about an earlier product, call searchProducts again before answering.
+      3. List products as "- Name: price ₫" with prices in VND written with dots, e.g. 2.990.000 ₫. Then
+         suggest one useful next step (narrow by price, compare two items, another category).
+      4. Prices are in VND. If the user uses another currency, ask them to give the amount in VND.
+      5. You cannot place, change or cancel orders or payments; explain that the app does it.
+      6. If the user is unhappy or the message is unclear ("?"), apologise in one sentence and give two
+         example questions, e.g. "tìm tai nghe dưới 2 triệu" or "laptop rẻ nhất".
       """;
 
   private final ChatClient chatClient;
@@ -58,6 +84,7 @@ public class AiServiceImpl implements AiService {
   private final AiProductSearch productSearch;
   private final RuleBasedAnswerer ruleBasedAnswerer;
   private final AiRateLimiter rateLimiter;
+  private final ProviderCooldown cooldown;
   private final AiChatSessionRepository sessionRepository;
   private final AiMessageRepository messageRepository;
   private final UserRepository userRepository;
@@ -71,6 +98,7 @@ public class AiServiceImpl implements AiService {
       AiProductSearch productSearch,
       RuleBasedAnswerer ruleBasedAnswerer,
       AiRateLimiter rateLimiter,
+      ProviderCooldown cooldown,
       AiChatSessionRepository sessionRepository,
       AiMessageRepository messageRepository,
       UserRepository userRepository,
@@ -82,6 +110,7 @@ public class AiServiceImpl implements AiService {
     this.productSearch = productSearch;
     this.ruleBasedAnswerer = ruleBasedAnswerer;
     this.rateLimiter = rateLimiter;
+    this.cooldown = cooldown;
     this.sessionRepository = sessionRepository;
     this.messageRepository = messageRepository;
     this.userRepository = userRepository;
@@ -108,9 +137,9 @@ public class AiServiceImpl implements AiService {
     UUID sessionId = caller == null ? null : resolveSession(caller.id(), request.sessionId());
     String message = request.message().trim();
 
-    // Bước 4: thử LLM khi được phép.
+    // Bước 4: thử LLM khi được phép (trong hạn mức, đã có key, provider không đang bắt chờ sau 429).
     boolean userMessageSaved = false;
-    if (level == AiRateLimiter.Level.AI && providerConfigured) {
+    if (level == AiRateLimiter.Level.AI && providerConfigured && !cooldown.active()) {
       ProductSearchTools tools = new ProductSearchTools(productSearch);
       try {
         ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().user(message).tools(tools);
@@ -133,6 +162,7 @@ public class AiServiceImpl implements AiService {
       } catch (RuntimeException e) {
         // Provider lỗi (sai key, hết hạn mức, mạng...): ghi log, không lộ chi tiết, chuyển sang luật.
         log.warn("AI provider call failed, answering with rules: {}", e.toString());
+        cooldown.onFailure(e); // 429 thì tạm nghỉ gọi provider một lúc
       }
       // Advisor lưu câu hỏi TRƯỚC khi gọi model, nên tới đây câu hỏi đã có trong session.
       userMessageSaved = sessionId != null;

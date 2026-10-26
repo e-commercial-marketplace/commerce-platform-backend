@@ -19,6 +19,7 @@ import com.marketplace.enums.ProductSort;
 import com.marketplace.mapper.ProductMapper;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.ProductService;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -104,5 +105,11 @@ public class ProductServiceImpl implements ProductService {
     if (!product.isActive()) {
       throw BusinessException.productInactive("Product is no longer available: " + product.getName());
     }
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Set<UUID> categoryIdsWithListedProducts() {
+    return productRepository.findCategoryIdsWithActiveProducts();
   }
 }

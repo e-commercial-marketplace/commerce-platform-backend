@@ -7,10 +7,12 @@ import java.math.BigDecimal;
  * Lần tìm product đã thực sự chạy (sau khi chuẩn hoá), không phải lời model kể lại. Mọi field có thể
  * {@code null}.
  *
+ * @param category tên danh mục đã lọc
  * @param sort một trong {@code relevance, price_asc, price_desc, rating_desc}
  */
 public record AiProductQueryResponse(
     String text,
+    String category,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal minPrice,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal maxPrice,
     @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal minRating,

@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-/** Chat memory: chỉ thêm, không xoá lịch sử; model chỉ nhận 20 tin gần nhất theo đúng thứ tự. */
+/** Chat memory: chỉ thêm, không xoá lịch sử; model chỉ nhận 10 tin gần nhất theo đúng thứ tự. */
 @SpringBootTest
 @ActiveProfiles("test")
 class AiChatMemoryTest {
@@ -31,7 +31,7 @@ class AiChatMemoryTest {
   @Autowired private TestSupport support;
 
   @Test
-  void keepsTheWholeHistoryButGivesTheModelOnlyTheLast20InOrder() {
+  void keepsTheWholeHistoryButGivesTheModelOnlyTheLastWindowInOrder() {
     AiChatSession session =
         sessions.save(AiChatSession.builder().user(support.user(Role.CUSTOMER, null)).createdAt(Instant.now()).build());
     String id = session.getId().toString();
@@ -45,8 +45,8 @@ class AiChatMemoryTest {
     assertThat(messages.findBySessionIdOrderByCreatedAtAsc(session.getId())).hasSize(26);
     List<String> window = new ArrayList<>(memory.get(id).stream().map(Message::getText).toList());
     assertThat(window).hasSize(AiChatMemory.WINDOW);
-    assertThat(window.get(0)).isEqualTo("q4"); // 6 tin đầu (q1..a3) nằm ngoài cửa sổ
-    assertThat(window.get(19)).isEqualTo("a13");
+    assertThat(window.get(0)).isEqualTo("q9"); // 16 tin đầu (q1..a8) nằm ngoài cửa sổ
+    assertThat(window.get(AiChatMemory.WINDOW - 1)).isEqualTo("a13");
     assertThat(memory.get(id).get(0)).isInstanceOf(UserMessage.class);
   }
 }

@@ -2,6 +2,7 @@ package com.marketplace.repository;
 
 import com.marketplace.entity.Product;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -59,4 +60,8 @@ public interface ProductRepository
   @Modifying(flushAutomatically = true)
   @Query("update Product p set p.stock = p.stock + :quantity where p.id = :id")
   int increaseStock(@Param("id") UUID id, @Param("quantity") int quantity);
+
+  /** Id các category đang có ít nhất một product đang bán (một câu query cho mọi category). */
+  @Query("select distinct p.category.id from Product p where p.active = true")
+  Set<UUID> findCategoryIdsWithActiveProducts();
 }
