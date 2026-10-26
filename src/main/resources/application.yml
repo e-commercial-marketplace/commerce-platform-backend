@@ -37,6 +37,24 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
+  # Trợ lý AI qua API tương thích OpenAI. Đổi provider chỉ cần đổi 3 biến AI_*, không đổi code.
+  # Starter bắt buộc có api-key lúc khởi động: thiếu thì dùng giá trị giả "not-configured"; AiServiceImpl
+  # thấy AI_API_KEY rỗng thì không bao giờ gọi provider (trả lời bằng luật thay thế).
+  ai:
+    openai:
+      base-url: ${AI_BASE_URL:https://api.openai.com}
+      api-key: ${AI_API_KEY:not-configured}
+      chat:
+        options:
+          model: ${AI_MODEL:gpt-4o-mini}
+    # Chỉ dùng chat; không dựng các model embedding, ảnh, âm thanh, kiểm duyệt của starter.
+    model:
+      embedding: none
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
   # Redis chỉ làm cache đọc (giỏ hàng, danh mục, trang shop), bật bằng app.cache.enabled. Không có Redis
   # app vẫn chạy (đọc PostgreSQL), nên timeout ngắn để một Redis chết không làm request chậm theo.
   data:
@@ -89,6 +107,9 @@ app:
     max-attempts: 5
     resend-cooldown-seconds: 60
     max-codes-per-hour: 5
+  ai:
+    # Có AI_API_KEY thì dùng LLM; rỗng thì /ai/ask luôn trả lời bằng luật, không gọi provider.
+    api-key: ${AI_API_KEY:}
   cache:
     # false (mặc định): không dùng Redis, mọi dữ liệu đọc thẳng PostgreSQL. Bật khi đã có REDIS_URL.
     # Một cờ cho cả cache giỏ hàng và cache danh mục/trang shop (architecture §5.4).

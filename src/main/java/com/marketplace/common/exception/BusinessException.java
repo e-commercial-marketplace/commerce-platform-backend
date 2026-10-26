@@ -111,6 +111,11 @@ public class BusinessException extends RuntimeException {
     return new BusinessException(ErrorCode.REVIEW_ALREADY_EXISTS, message);
   }
 
+  /** Lỗi 429 {@code RATE_LIMITED}: hỏi trợ lý AI quá nhiều câu trong một phút. */
+  public static BusinessException rateLimited(String message) {
+    return new BusinessException(ErrorCode.RATE_LIMITED, message);
+  }
+
   /** @return loại lỗi; global handler lấy mã và HTTP status từ đây */
   public ErrorCode getErrorCode() {
     return errorCode;

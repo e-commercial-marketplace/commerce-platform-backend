@@ -24,6 +24,7 @@ public enum ErrorCode {
   VOUCHER_EXHAUSTED(HttpStatus.CONFLICT, "Voucher has no use left"),
   REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "You can review a product only after a completed order"),
   REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "You already reviewed this product"),
+  RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests, try again in a minute"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;
