@@ -3,6 +3,7 @@ package com.marketplace.service.impl;
 import com.marketplace.ai.AiRateLimiter;
 import com.marketplace.ai.ProviderCooldown;
 import com.marketplace.ai.memory.AiChatMemory;
+import com.marketplace.ai.rag.PolicyKnowledge;
 import com.marketplace.ai.rules.RuleBasedAnswerer;
 import com.marketplace.ai.rules.RuleBasedAnswerer.RuleAnswer;
 import com.marketplace.ai.tools.AiProductSearch;
@@ -77,10 +78,14 @@ public class AiServiceImpl implements AiService {
       5. You cannot place, change or cancel orders or payments; explain that the app does it.
       6. If the user is unhappy or the message is unclear ("?"), apologise in one sentence and give two
          example questions, e.g. "tìm tai nghe dưới 2 triệu" or "laptop rẻ nhất".
+      7. Questions about marketplace rules (payment, delivery, cancellation, refund, voucher, review,
+         account): answer only from the "Policy excerpts" section when it is present. If the excerpts do
+         not cover the question, say you are not sure and do not guess.
       """;
 
   private final ChatClient chatClient;
   private final AiChatMemory chatMemory;
+  private final PolicyKnowledge policyKnowledge;
   private final AiProductSearch productSearch;
   private final RuleBasedAnswerer ruleBasedAnswerer;
   private final AiRateLimiter rateLimiter;
@@ -95,6 +100,7 @@ public class AiServiceImpl implements AiService {
   public AiServiceImpl(
       ChatClient.Builder chatClientBuilder,
       AiChatMemory chatMemory,
+      PolicyKnowledge policyKnowledge,
       AiProductSearch productSearch,
       RuleBasedAnswerer ruleBasedAnswerer,
       AiRateLimiter rateLimiter,
@@ -107,6 +113,7 @@ public class AiServiceImpl implements AiService {
       @Value("${app.ai.api-key:}") String apiKey) {
     this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
     this.chatMemory = chatMemory;
+    this.policyKnowledge = policyKnowledge;
     this.productSearch = productSearch;
     this.ruleBasedAnswerer = ruleBasedAnswerer;
     this.rateLimiter = rateLimiter;
@@ -143,8 +150,14 @@ public class AiServiceImpl implements AiService {
       ProductSearchTools tools = new ProductSearchTools(productSearch);
       try {
         ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().user(message).tools(tools);
+        // RAG: thêm các đoạn điều khoản gần nghĩa vào system prompt (không vào câu hỏi, để lịch sử chat chỉ
+        // lưu đúng câu người dùng gõ). RAG tắt hoặc lỗi thì danh sách rỗng, prompt giữ nguyên.
+        List<String> excerpts = policyKnowledge.findRelevant(message);
+        if (!excerpts.isEmpty()) {
+          prompt = prompt.system(SYSTEM_PROMPT + "\nPolicy excerpts:\n" + String.join("\n\n", excerpts));
+        }
         if (sessionId != null) {
-          // Advisor đọc 20 tin gần nhất đưa vào prompt, rồi lưu câu hỏi và câu trả lời vào ai_messages.
+          // Advisor đọc 10 tin gần nhất đưa vào prompt, rồi lưu câu hỏi và câu trả lời vào ai_messages.
           prompt = prompt.advisors(MessageChatMemoryAdvisor.builder(chatMemory).conversationId(sessionId.toString()).build());
         }
         String answer = prompt.call().content();

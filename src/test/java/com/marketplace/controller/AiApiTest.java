@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.marketplace.ai.ProviderCooldown;
+import com.marketplace.ai.rag.PolicyKnowledge;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
@@ -57,6 +58,7 @@ class AiApiTest {
   @Autowired private TestSupport support;
   @Autowired private AiChatSessionRepository sessions;
   @MockitoBean private ChatModel chatModel;
+  @MockitoBean private PolicyKnowledge policyKnowledge; // mặc định trả rỗng: như khi RAG tắt
   @Autowired private ProviderCooldown cooldown;
 
   private User customer;
@@ -126,6 +128,31 @@ class AiApiTest {
         .andExpect(jsonPath("$.data[3].role").value("ASSISTANT"));
     mvc.perform(get("/api/v1/ai/sessions").header(HttpHeaders.AUTHORIZATION, support.bearer(customer)))
         .andExpect(jsonPath("$.data[0].id").value(sessionId));
+  }
+
+  @Test
+  void policyExcerptsGoIntoTheSystemPromptButNotIntoTheStoredQuestion() throws Exception {
+    when(policyKnowledge.findRelevant("hoàn tiền thế nào"))
+        .thenReturn(List.of("## Hoàn tiền\nHiện sàn chưa có quy trình hoàn tiền tự động cho khách."));
+
+    String sessionId =
+        JsonPath.read(
+            askAs(customer, "{\"message\":\"hoàn tiền thế nào\"}")
+                .andExpect(jsonPath("$.data.answeredBy").value("AI"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(),
+            "$.data.sessionId");
+
+    ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+    verify(chatModel).call(prompt.capture());
+    assertThat(prompt.getValue().getSystemMessage().getText())
+        .contains("Policy excerpts:")
+        .contains("chưa có quy trình hoàn tiền tự động");
+
+    // Lịch sử chỉ có câu người dùng gõ, không lẫn trích đoạn.
+    mvc.perform(get("/api/v1/ai/sessions/" + sessionId + "/messages").header(HttpHeaders.AUTHORIZATION, support.bearer(customer)))
+        .andExpect(jsonPath("$.data[0].content").value("hoàn tiền thế nào"));
   }
 
   // ---------- trả lời bằng luật ----------
