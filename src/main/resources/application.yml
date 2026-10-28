@@ -49,9 +49,20 @@ spring:
           model: ${AI_MODEL:gpt-4o-mini}
           # Thấp để model bám kết quả tool, ít "sáng tác".
           temperature: 0.3
-    # Chỉ dùng chat; không dựng các model embedding, ảnh, âm thanh, kiểm duyệt của starter.
+      # Embedding cho RAG điều khoản: mặc định Google Gemini qua endpoint tương thích OpenAI (provider riêng
+      # vì DeepSeek/Groq không có API embedding). Thiếu key thì dùng giá trị giả; PolicyKnowledge thấy
+      # AI_EMBEDDING_API_KEY rỗng thì tắt RAG.
+      embedding:
+        base-url: ${AI_EMBEDDING_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+        # Gemini không có "/v1" trong đường dẫn: URL đủ là <base-url>/embeddings.
+        embeddings-path: ${AI_EMBEDDING_PATH:/embeddings}
+        api-key: ${AI_EMBEDDING_API_KEY:not-configured}
+        options:
+          # Phải ra vector 3072 chiều, đúng cột embedding của bảng policy_chunks (V18).
+          model: ${AI_EMBEDDING_MODEL:gemini-embedding-001}
+    # Dùng chat và embedding; không dựng các model ảnh, âm thanh, kiểm duyệt của starter.
     model:
-      embedding: none
+      embedding: openai
       image: none
       audio:
         speech: none
@@ -112,6 +123,8 @@ app:
   ai:
     # Có AI_API_KEY thì dùng LLM; rỗng thì /ai/ask luôn trả lời bằng luật, không gọi provider.
     api-key: ${AI_API_KEY:}
+    # Có AI_EMBEDDING_API_KEY thì bật RAG điều khoản (cần PostgreSQL có pgvector); rỗng thì tắt.
+    embedding-api-key: ${AI_EMBEDDING_API_KEY:}
   cache:
     # false (mặc định): không dùng Redis, mọi dữ liệu đọc thẳng PostgreSQL. Bật khi đã có REDIS_URL.
     # Một cờ cho cả cache giỏ hàng và cache danh mục/trang shop (architecture §5.4).

@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.marketplace.ai.ProviderCooldown;
+import com.marketplace.ai.rag.PolicyKnowledge;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
@@ -31,6 +32,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,6 +59,7 @@ class AiApiTest {
   @Autowired private TestSupport support;
   @Autowired private AiChatSessionRepository sessions;
   @MockitoBean private ChatModel chatModel;
+  @MockitoBean private PolicyKnowledge policyKnowledge; // mặc định trả rỗng: như khi RAG tắt
   @Autowired private ProviderCooldown cooldown;
 
   private User customer;
@@ -126,6 +129,25 @@ class AiApiTest {
         .andExpect(jsonPath("$.data[3].role").value("ASSISTANT"));
     mvc.perform(get("/api/v1/ai/sessions").header(HttpHeaders.AUTHORIZATION, support.bearer(customer)))
         .andExpect(jsonPath("$.data[0].id").value(sessionId));
+  }
+
+  @Test
+  void theModelIsOfferedThePolicyToolAndThePromptCarriesNoPolicyText() throws Exception {
+    // Model thật có default options; model giả phải khai báo để ChatClient gắn danh sách tool vào prompt.
+    when(chatModel.getDefaultOptions()).thenReturn(ToolCallingChatOptions.builder().build());
+    askAsGuest("{\"message\":\"hoàn tiền thế nào\"}").andExpect(jsonPath("$.data.answeredBy").value("AI"));
+
+    ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+    verify(chatModel).call(prompt.capture());
+    // Model được đưa cả ba tool và tự chọn gọi tool nào.
+    List<String> toolNames =
+        ((ToolCallingChatOptions) prompt.getValue().getOptions())
+            .getToolCallbacks().stream()
+            .map(callback -> callback.getToolDefinition().name())
+            .toList();
+    assertThat(toolNames).contains("listCategories", "searchProducts", "searchPolicies");
+    // Backend không tự tra điều khoản khi model chưa gọi tool.
+    verify(policyKnowledge, never()).findRelevant(any());
   }
 
   // ---------- trả lời bằng luật ----------

@@ -6,6 +6,7 @@ import com.marketplace.ai.memory.AiChatMemory;
 import com.marketplace.ai.rules.RuleBasedAnswerer;
 import com.marketplace.ai.rules.RuleBasedAnswerer.RuleAnswer;
 import com.marketplace.ai.tools.AiProductSearch;
+import com.marketplace.ai.tools.PolicyTools;
 import com.marketplace.ai.tools.ProductSearchTools;
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.util.TimeProvider;
@@ -56,6 +57,7 @@ public class AiServiceImpl implements AiService {
       Tools (read-only):
       - listCategories: the category names the shop sells.
       - searchProducts(text, category, minPrice, maxPrice, minRating, sort): at most 5 listed products.
+      - searchPolicies(question): up to 3 excerpts of the marketplace terms for customers.
 
       Rules:
       1. Be proactive. Never answer only with a question when a tool can help.
@@ -77,10 +79,15 @@ public class AiServiceImpl implements AiService {
       5. You cannot place, change or cancel orders or payments; explain that the app does it.
       6. If the user is unhappy or the message is unclear ("?"), apologise in one sentence and give two
          example questions, e.g. "tìm tai nghe dưới 2 triệu" or "laptop rẻ nhất".
+      7. Questions about marketplace rules (payment, delivery, cancellation, refund, voucher, review,
+         account): call searchPolicies and answer only from its excerpts. Do not add anything the excerpts
+         do not say (no support team, hotline, email or extra steps). If it returns nothing, say you are
+         not sure.
       """;
 
   private final ChatClient chatClient;
   private final AiChatMemory chatMemory;
+  private final PolicyTools policyTools;
   private final AiProductSearch productSearch;
   private final RuleBasedAnswerer ruleBasedAnswerer;
   private final AiRateLimiter rateLimiter;
@@ -95,6 +102,7 @@ public class AiServiceImpl implements AiService {
   public AiServiceImpl(
       ChatClient.Builder chatClientBuilder,
       AiChatMemory chatMemory,
+      PolicyTools policyTools,
       AiProductSearch productSearch,
       RuleBasedAnswerer ruleBasedAnswerer,
       AiRateLimiter rateLimiter,
@@ -107,6 +115,7 @@ public class AiServiceImpl implements AiService {
       @Value("${app.ai.api-key:}") String apiKey) {
     this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
     this.chatMemory = chatMemory;
+    this.policyTools = policyTools;
     this.productSearch = productSearch;
     this.ruleBasedAnswerer = ruleBasedAnswerer;
     this.rateLimiter = rateLimiter;
@@ -142,9 +151,10 @@ public class AiServiceImpl implements AiService {
     if (level == AiRateLimiter.Level.AI && providerConfigured && !cooldown.active()) {
       ProductSearchTools tools = new ProductSearchTools(productSearch);
       try {
-        ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().user(message).tools(tools);
+        // Model tự chọn tool: searchProducts cho câu hỏi sản phẩm, searchPolicies cho câu hỏi về quy định.
+        ChatClient.ChatClientRequestSpec prompt = chatClient.prompt().user(message).tools(tools, policyTools);
         if (sessionId != null) {
-          // Advisor đọc 20 tin gần nhất đưa vào prompt, rồi lưu câu hỏi và câu trả lời vào ai_messages.
+          // Advisor đọc 10 tin gần nhất đưa vào prompt, rồi lưu câu hỏi và câu trả lời vào ai_messages.
           prompt = prompt.advisors(MessageChatMemoryAdvisor.builder(chatMemory).conversationId(sessionId.toString()).build());
         }
         String answer = prompt.call().content();
