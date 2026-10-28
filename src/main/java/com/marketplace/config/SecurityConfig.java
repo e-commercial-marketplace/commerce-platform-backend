@@ -93,6 +93,12 @@ public class SecurityConfig {
     API + "/ai/sessions/**"
   };
 
+  /**
+   * Human chat: REST hội thoại/tin nhắn và handshake WebSocket {@code /ws/chat} (không có prefix API). Chỉ
+   * customer và seller; service còn kiểm tra người gọi có trong hội thoại hay không.
+   */
+  private static final String[] CHAT_PARTICIPANTS = {API + "/conversations/**", "/ws/chat"};
+
   /** Chỉ seller. Trạng thái APPROVED không nằm trong token nên service kiểm tra thêm trong DB. */
   private static final String[] SELLER_ONLY = {API + "/seller/**"};
 
@@ -101,7 +107,7 @@ public class SecurityConfig {
 
   /** CORS: method và header trình duyệt được gửi; thời gian (giây) trình duyệt nhớ kết quả preflight. */
   private static final List<String> CORS_METHODS = List.of("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS");
-  private static final List<String> CORS_HEADERS = List.of("Authorization", "Content-Type");
+  private static final List<String> CORS_HEADERS = List.of("Authorization", "Content-Type", "Idempotency-Key");
   private static final long CORS_MAX_AGE_SECONDS = 3600L;
 
   // Dùng để kiểm tra token, được đưa vào JwtAuthenticationFilter.
@@ -138,6 +144,7 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET).permitAll()
                     .requestMatchers(HttpMethod.POST, PUBLIC_POST).permitAll()
                     .requestMatchers(CUSTOMER_ONLY).hasRole(Role.CUSTOMER.name())
+                    .requestMatchers(CHAT_PARTICIPANTS).hasAnyRole(Role.CUSTOMER.name(), Role.SELLER.name())
                     .requestMatchers(SELLER_ONLY).hasRole(Role.SELLER.name())
                     .requestMatchers(ADMIN_ONLY).hasRole(Role.ADMIN.name())
                     // Mọi request còn lại (ví dụ /users/me, /auth/logout) phải đăng nhập, thiếu token -> 401.

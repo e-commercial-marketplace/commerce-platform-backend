@@ -18,9 +18,10 @@ SRS, architecture). The contracts are written first; this code follows them.
 | Shipment | Admin-managed carriers, per-seller shipments with a status machine, stock restored on return |
 | Voucher and review | Platform vouchers (percent, usage limit, window) and product reviews with a rating aggregate |
 | AI assistant | `POST /ai/ask`: LLM with read-only tools (`listCategories`, `searchProducts`, `searchPolicies`), policy RAG over the customer terms (Gemini embeddings + pgvector), per-session chat memory (last 10 messages), rule-based fallback, per-minute limits |
+| Human chat | Customer/seller conversations (get-or-create per pair), message history, sending with an `Idempotency-Key`, read state; plain WebSocket `/ws/chat` pushes new messages and read events |
 | Cache | Optional Redis cache for cart lines, the category list and seller shop pages |
 
-Not implemented yet: human chat (WebSocket), Google login.
+Not implemented yet: Google login.
 
 ## Tech stack
 
@@ -263,6 +264,7 @@ docker build -t marketplace-backend:local .   # build the API image without Comp
 - V16: carriers (`shipments.carrier_id`)
 - V17: order status `COMPLETED`
 - V18: `vector` extension and `policy_chunks` (policy RAG, `vector(3072)`)
+- V19: `messages.client_message_id` (chat `Idempotency-Key`, unique per sender)
 
 Once a migration has been applied, add a new version instead of editing it to avoid Flyway checksum
 mismatches.
@@ -282,6 +284,10 @@ Layered under `com.marketplace` (all features share each layer; class names iden
   the VNPAY and mail properties, and `CacheConfig` (Spring Cache on Redis).
 - `security` holds the JWT filter and the 401/403 handlers.
 - `repository` also holds `CartCache`, the Redis copy of the cart lines.
+- `websocket` holds the push-only chat channel: `ChatWebSocketHandler` keeps each user's open connections
+  in memory (one instance) and `ChatEventListener` pushes the `ChatPush` events published by `ChatService`
+  after the transaction commits. The handshake goes through the normal security chain (Bearer token,
+  `CUSTOMER`/`SELLER` only).
 - `ai/tools` has the read-only tools and the shared product search, `ai/rules` the rule-based answerer,
   `ai/memory` the chat memory over `ai_messages`, `ai/rag` the policy RAG (`PolicyKnowledge`: load the
   terms file, embed, search pgvector); `ai/` itself has the rate limiter and the provider cooldown.
