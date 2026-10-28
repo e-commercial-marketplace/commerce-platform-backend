@@ -368,6 +368,7 @@ async function api(method, path, opts = {}) {
   const headers = {};
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (opts.auth !== false && state.access) headers["Authorization"] = "Bearer " + state.access;
+  Object.assign(headers, opts.headers || {}); // header riêng của từng API, ví dụ Idempotency-Key khi gửi tin chat
   const requestHeaders = maskHeaders(headers);
   const t0 = performance.now();
   let res, text;
@@ -594,6 +595,8 @@ async function route() {
     else if (a === "forgot-password") viewForgotPassword(ctx);
     else if (a === "account") await viewAccount(ctx);
     else if (a === "ai") await viewAi(ctx);
+    else if (a === "chat" && b) await viewConversation(ctx, b);
+    else if (a === "chat") await viewChats(ctx);
     else if (a === "seller" && b === "orders") await viewSellerOrders(ctx, query);
     else if (a === "seller" && b === "shipments") await viewSellerShipments(ctx, query);
     else if (a === "seller") await viewSeller(ctx);
@@ -690,9 +693,10 @@ async function viewAi(ctx) {
     if (customer) await loadSessions();
   } }, field("Câu hỏi", message, "Tối đa 1000 ký tự. Chỉ tư vấn và tìm sản phẩm theo VND; không thay đổi đơn hàng."), err, submit);
   ctx.mount(h("section", {}, h("h1", {}, "Trợ lý AI"),
-    h("p", { class: "hint" }, customer ? "Cuộc trò chuyện được lưu cho tài khoản customer; backend nhớ 20 tin nhắn gần nhất."
+    h("p", { class: "hint" }, customer ? "Cuộc trò chuyện được lưu cho tài khoản customer; model đọc 10 tin nhắn gần nhất."
       : "Chế độ guest không lưu lịch sử trên backend và mỗi câu hỏi độc lập. Đăng nhập customer để tiếp tục hội thoại."),
     h("p", { class: "hint" }, "Tối đa 60 câu hỏi/phút; từ câu 21 dùng bộ luật dự phòng. Khi chưa cấu hình AI hoặc nhà cung cấp lỗi, backend vẫn trả lời bằng RULES."),
+    h("p", { class: "hint" }, "Hỏi về quy định (thanh toán, giao hàng, huỷ đơn, hoàn tiền, voucher) thì model gọi tool searchPolicies để tra điều khoản (cần AI_EMBEDDING_API_KEY)."),
     customer ? field("Cuộc trò chuyện", sessions) : null, historyError, chat, form, results));
   if (customer) await loadSessions();
 }
@@ -858,7 +862,8 @@ async function viewShop(ctx, id, q) {
   const go = (extra) => navigate("/shop/" + id, { ...f, page: "", ...extra });
   ctx.mount(h("div", {},
     h("div", { class: "card shopbar" }, h("span", { class: "avatar" }, initial(shop.name)),
-      h("div", {}, h("h1", { style: "margin:0" }, shop.name), h("div", { class: "muted" }, shop.productCount + " sản phẩm đang bán"))),
+      h("div", { style: "flex:1" }, h("h1", { style: "margin:0" }, shop.name), h("div", { class: "muted" }, shop.productCount + " sản phẩm đang bán")),
+      !state.user || state.user.role === "CUSTOMER" ? h("button", { class: "btn-primary", onclick: () => openChatWith(id) }, "Nhắn tin với shop") : null),
     h("form", { class: "rowflex", style: "margin:16px 0", onsubmit: (e) => { e.preventDefault(); go(Object.fromEntries(new FormData(e.target))); } },
       h("div", { style: "flex:1 1 240px" }, h("label", { class: "sr-only", for: "shopQ" }, "Tìm trong shop"), h("input", { id: "shopQ", name: "q", type: "search", placeholder: "Tìm trong shop này", value: f.q })),
       h("div", {}, h("label", { class: "sr-only", for: "shopSort" }, "Sắp xếp"), h("select", { id: "shopSort", name: "sort", value: f.sort },
@@ -1760,6 +1765,113 @@ function productModal(product, cats, reload) {
   close = openModal(isNew ? "Sản phẩm mới" : "Sửa sản phẩm", form);
 }
 
+/* ---------- Tin nhắn customer ↔ seller (human chat) ----------
+   Gửi tin bằng REST kèm Idempotency-Key. Trình duyệt không gửi được header Authorization khi mở WebSocket,
+   nên tester tự tải lại tin mỗi 3 giây thay cho /ws/chat (app mobile thì dùng WebSocket). */
+const CHAT_POLL_MS = 3000;
+
+/** Customer bấm "Nhắn tin với shop": lấy (hoặc tạo) hội thoại với seller đó rồi mở nó. */
+async function openChatWith(sellerId) {
+  if (!state.user) return navigate("/login", { next: "/shop/" + sellerId });
+  const r = await api("POST", "/conversations", { body: { sellerId } });
+  if (r.status === 401) { clearSession(); return navigate("/login", { next: "/shop/" + sellerId }); }
+  if (!r.ok) return toast(errMsg(r), true);
+  navigate("/chat/" + r.data.data.id);
+}
+
+/**
+ * Tên hiển thị của người bên kia. API hội thoại chỉ trả id: customer thì tra tên shop qua GET /sellers/{id}
+ * (công khai); seller không có API xem tên khách nên hiện 6 ký tự cuối của id.
+ */
+function chatPartner(conversation, shopNames) {
+  if (state.user.role === "CUSTOMER") return shopNames[conversation.sellerId] || "Shop …" + conversation.sellerId.slice(-6);
+  return "Khách …" + conversation.customerId.slice(-6);
+}
+
+async function viewChats(ctx) {
+  if (!state.user) return navigate("/login", { next: "/chat" });
+  if (state.user.role !== "CUSTOMER" && state.user.role !== "SELLER") return ctx.mount(emptyState("Tin nhắn dành cho customer và seller",
+    "Backend chỉ cho CUSTOMER và SELLER dùng human chat.", h("a", { class: "btn", href: "#/" }, "Về trang chủ")));
+  ctx.mount(h("div", {}, skeletonGrid(2)), false);
+  const r = await api("GET", "/conversations");
+  if (ctx.id !== routeId) return;
+  if (r.status === 401) { clearSession(); return navigate("/login", { next: "/chat" }); }
+  if (!r.ok) return ctx.mount(errorBox(r, () => route()));
+  const list = r.data.data;
+  const shopNames = {};
+  if (state.user.role === "CUSTOMER") {
+    const sellerIds = [...new Set(list.map((c) => c.sellerId))];
+    const shops = await Promise.all(sellerIds.map((sellerId) => api("GET", "/sellers/" + encodeURIComponent(sellerId), { auth: false })));
+    if (ctx.id !== routeId) return;
+    shops.forEach((shop, i) => { if (shop.ok) shopNames[sellerIds[i]] = shop.data.data.name; });
+  }
+  ctx.mount(h("section", {}, h("h1", {}, "Tin nhắn"),
+    list.length ? h("div", { class: "cart-list" }, list.map((c) => h("a", { class: "card pad", href: "#/chat/" + c.id, style: "display:block" },
+      h("strong", {}, chatPartner(c, shopNames)),
+      h("div", { class: "small muted" }, c.lastMessageAt ? "Tin gần nhất: " + dateTime(c.lastMessageAt) : "Chưa có tin nhắn"))))
+      : emptyState("Chưa có hội thoại", state.user.role === "CUSTOMER" ? "Vào trang một shop và bấm \"Nhắn tin với shop\"." : "Khách hàng nhắn cho shop thì hội thoại hiện ở đây.", null)));
+}
+
+async function viewConversation(ctx, id) {
+  if (!state.user) return navigate("/login", { next: "/chat/" + id });
+  const me = state.user.id;
+  const log = h("div", { class: "cart-list", role: "log", "aria-label": "Tin nhắn", "aria-live": "polite", style: "margin:16px 0" });
+  const status = h("p", { class: "hint" });
+  const err = h("div", { class: "error-text", role: "alert" });
+  const input = h("textarea", { required: true, maxlength: "2000", placeholder: "Nhập tin nhắn" });
+  const submit = h("button", { class: "btn-primary", type: "submit" }, "Gửi");
+  let lastNewestId = null;
+  // Key của tin đang gửi: giữ nguyên khi gửi lỗi mạng, để bấm Gửi lại không tạo tin trùng (thử idempotency).
+  let pendingKey = null, pendingText = null;
+
+  const bubble = (m) => h("article", { class: "card pad", style: m.senderId === me ? "margin-left:20%;background:var(--accent-soft, #eef4ff)" : "margin-right:20%" },
+    h("strong", {}, m.senderId === me ? "Bạn" : "Người kia"),
+    h("span", { class: "small muted" }, " · " + dateTime(m.createdAt) + (m.senderId === me ? (m.isRead ? " · Đã xem" : " · Chưa xem") : "")),
+    m.content ? h("p", { style: "white-space:pre-wrap;overflow-wrap:anywhere" }, m.content) : null,
+    safeUrl(m.imageUrl) ? h("img", { src: m.imageUrl, alt: "Ảnh đính kèm", style: "max-width:240px" }) : null);
+
+  /** Tải 50 tin mới nhất; có tin mới của người kia thì đánh dấu đã đọc. Trả false nếu đã rời trang. */
+  async function load() {
+    const r = await api("GET", "/conversations/" + encodeURIComponent(id) + "/messages?size=50");
+    if (ctx.id !== routeId) return false;
+    if (r.status === 401) { clearSession(); navigate("/login", { next: "/chat/" + id }); return false; }
+    if (r.status === 404) { ctx.mount(emptyState("Không tìm thấy hội thoại", "Hội thoại không tồn tại hoặc bạn không tham gia.", h("a", { class: "btn", href: "#/chat" }, "Về danh sách"))); return false; }
+    if (!r.ok) { status.textContent = "Không tải được tin nhắn: " + errMsg(r); return true; }
+    const page = r.data.data;
+    const newestFirst = page.content;
+    put(log, [...newestFirst].reverse().map(bubble)); // API trả mới nhất trước; hiển thị cũ ở trên, mới ở dưới
+    status.textContent = page.totalElements + " tin nhắn · tự cập nhật mỗi " + CHAT_POLL_MS / 1000 + " giây";
+    const newest = newestFirst[0];
+    if (newest && newest.id !== lastNewestId) {
+      lastNewestId = newest.id;
+      if (newestFirst.some((m) => m.senderId !== me && !m.isRead)) await api("PATCH", "/conversations/" + encodeURIComponent(id) + "/read");
+    }
+    return true;
+  }
+
+  const form = h("form", { onsubmit: async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) { err.textContent = "Hãy nhập tin nhắn."; return; }
+    if (text !== pendingText) { pendingKey = crypto.randomUUID(); pendingText = text; }
+    err.textContent = ""; submit.disabled = true;
+    const r = await api("POST", "/conversations/" + encodeURIComponent(id) + "/messages",
+      { body: { content: text }, headers: { "Idempotency-Key": pendingKey } });
+    submit.disabled = false;
+    if (ctx.id !== routeId) return;
+    if (!r.ok) { err.textContent = (r.networkError ? "Lỗi mạng, bấm Gửi lại (cùng Idempotency-Key, không tạo tin trùng). " : "") + errMsg(r); return; }
+    pendingKey = null; pendingText = null; input.value = "";
+    await load();
+  } }, field("Tin nhắn", input, "Tối đa 2000 ký tự. Mỗi tin gửi kèm một Idempotency-Key mới."), err, submit);
+
+  ctx.mount(h("section", {}, h("a", { class: "btn btn-sm", href: "#/chat" }, "← Danh sách"), h("h1", {}, "Hội thoại " + shortId(id)), status, log, form));
+  if (!(await load())) return;
+  const timer = setInterval(async () => {
+    if (ctx.id !== routeId) return clearInterval(timer); // rời trang thì dừng tự tải
+    if (!(await load())) clearInterval(timer);
+  }, CHAT_POLL_MS);
+}
+
 /* ---------- Quản trị: khung có hai tab (danh mục, người dùng) ---------- */
 async function viewAdmin(ctx, query) {
   if (!state.user) return navigate("/login", { next: "/admin" });
@@ -2068,6 +2180,7 @@ function renderNav() {
       h("a", { href: "#/account", onclick: close }, icon("user"), "Tài khoản"),
       u.role === "CUSTOMER" ? h("a", { href: "#/orders", onclick: close }, icon("box"), "Đơn hàng") : null,
       u.role === "CUSTOMER" ? h("a", { href: "#/cart", onclick: close }, icon("cart"), "Giỏ hàng") : null,
+      u.role === "CUSTOMER" || u.role === "SELLER" ? h("a", { href: "#/chat", onclick: close }, "Tin nhắn") : null,
       u.role === "SELLER" ? h("a", { href: "#/seller", onclick: close }, icon("box"), "Kênh người bán") : null,
       u.role === "SELLER" ? h("a", { href: "#/seller/orders", onclick: close }, icon("box"), "Xử lý đơn hàng") : null,
       u.role === "SELLER" ? h("a", { href: "#/seller/shipments", onclick: close }, "Shipment") : null,
