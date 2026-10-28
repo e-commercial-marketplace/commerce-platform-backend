@@ -32,6 +32,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -131,28 +132,22 @@ class AiApiTest {
   }
 
   @Test
-  void policyExcerptsGoIntoTheSystemPromptButNotIntoTheStoredQuestion() throws Exception {
-    when(policyKnowledge.findRelevant("hoàn tiền thế nào"))
-        .thenReturn(List.of("## Hoàn tiền\nHiện sàn chưa có quy trình hoàn tiền tự động cho khách."));
-
-    String sessionId =
-        JsonPath.read(
-            askAs(customer, "{\"message\":\"hoàn tiền thế nào\"}")
-                .andExpect(jsonPath("$.data.answeredBy").value("AI"))
-                .andReturn()
-                .getResponse()
-                .getContentAsString(),
-            "$.data.sessionId");
+  void theModelIsOfferedThePolicyToolAndThePromptCarriesNoPolicyText() throws Exception {
+    // Model thật có default options; model giả phải khai báo để ChatClient gắn danh sách tool vào prompt.
+    when(chatModel.getDefaultOptions()).thenReturn(ToolCallingChatOptions.builder().build());
+    askAsGuest("{\"message\":\"hoàn tiền thế nào\"}").andExpect(jsonPath("$.data.answeredBy").value("AI"));
 
     ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
     verify(chatModel).call(prompt.capture());
-    assertThat(prompt.getValue().getSystemMessage().getText())
-        .contains("Policy excerpts:")
-        .contains("chưa có quy trình hoàn tiền tự động");
-
-    // Lịch sử chỉ có câu người dùng gõ, không lẫn trích đoạn.
-    mvc.perform(get("/api/v1/ai/sessions/" + sessionId + "/messages").header(HttpHeaders.AUTHORIZATION, support.bearer(customer)))
-        .andExpect(jsonPath("$.data[0].content").value("hoàn tiền thế nào"));
+    // Model được đưa cả ba tool và tự chọn gọi tool nào.
+    List<String> toolNames =
+        ((ToolCallingChatOptions) prompt.getValue().getOptions())
+            .getToolCallbacks().stream()
+            .map(callback -> callback.getToolDefinition().name())
+            .toList();
+    assertThat(toolNames).contains("listCategories", "searchProducts", "searchPolicies");
+    // Backend không tự tra điều khoản khi model chưa gọi tool.
+    verify(policyKnowledge, never()).findRelevant(any());
   }
 
   // ---------- trả lời bằng luật ----------
