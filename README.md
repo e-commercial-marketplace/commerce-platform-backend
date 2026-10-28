@@ -17,10 +17,10 @@ SRS, architecture). The contracts are written first; this code follows them.
 | Payment | COD and VNPAY (sandbox): signed payment URL, IPN and return handling, retry, 24-hour deadline job |
 | Shipment | Admin-managed carriers, per-seller shipments with a status machine, stock restored on return |
 | Voucher and review | Platform vouchers (percent, usage limit, window) and product reviews with a rating aggregate |
-| AI assistant | `POST /ai/ask`: LLM with read-only tools (`listCategories`, `searchProducts`), per-session chat memory (last 10 messages), rule-based fallback, per-minute limits |
+| AI assistant | `POST /ai/ask`: LLM with read-only tools (`listCategories`, `searchProducts`, `searchPolicies`), policy RAG over the customer terms (Gemini embeddings + pgvector), per-session chat memory (last 10 messages), rule-based fallback, per-minute limits |
 | Cache | Optional Redis cache for cart lines, the category list and seller shop pages |
 
-Not implemented yet: human chat (WebSocket), RAG over policies/FAQ, Google login.
+Not implemented yet: human chat (WebSocket), Google login.
 
 ## Tech stack
 
@@ -89,6 +89,8 @@ values come from environment variables. Only the first four are required.
 | `REDIS_URL` | no | Redis connection, for example `redis://localhost:6379`. On Render use the *internal* Key Value URL |
 | `APP_CACHE_ENABLED` | no | `true` turns on the Redis read cache; default `false` (every read goes to PostgreSQL) |
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | no | OpenAI-compatible provider for the assistant (OpenAI, DeepSeek, Groq, OpenRouter...). `AI_BASE_URL` has no `/v1` suffix. Without `AI_API_KEY` the assistant answers with rules only |
+| `AI_EMBEDDING_API_KEY` | no | Google AI Studio key for the policy RAG embeddings. Empty turns RAG off; the assistant still works |
+| `AI_EMBEDDING_BASE_URL`, `AI_EMBEDDING_PATH`, `AI_EMBEDDING_MODEL` | no | Embedding endpoint; defaults to Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`, `/embeddings`, `gemini-embedding-001`). Another model must return 3072-dimensional vectors |
 | `JPA_SHOW_SQL` | no | Log Hibernate SQL; default `false` |
 
 For local runs, copy `.env.example` to `.env` (same folder as this README) and adjust the values.
@@ -159,6 +161,30 @@ AI_MODEL=deepseek-chat
 ```
 
 The key is read only by the backend and never returned by any endpoint.
+
+#### Policy RAG (terms for customers)
+
+The customer terms live in `src/main/resources/rag/marketplace-terms.vi.md`; each `##` section is one
+chunk with a `Chủ đề:` (topic) line. Keep it customer-facing: no security internals, seller rules,
+prices, stock or voucher codes.
+
+- On startup `PolicyKnowledge` reads the file, embeds every chunk with Gemini and replaces the rows of
+  `policy_chunks` (V18). The log shows `Policy RAG loaded 17 chunks`. Edit the file and restart to change
+  the terms.
+- The LLM gets the read-only tool `searchPolicies(question)` and calls it for rule questions (payment,
+  delivery, cancellation, refund, voucher, review, account). The tool embeds the question and returns the
+  3 nearest chunks (pgvector cosine distance `<=>`). Product questions use `searchProducts` instead and
+  cost no embedding call.
+- Without `AI_EMBEDDING_API_KEY`, or when an embedding call fails, the tool returns nothing and the
+  model says it is not sure; `/ai/ask` never fails because of RAG. Rule-based answers do not use RAG.
+
+```dotenv
+AI_EMBEDDING_API_KEY=<Google AI Studio key>
+```
+
+Free provider tiers have small per-minute token limits (Groq: 7000 input tokens). A question that calls a
+tool costs about 1,500 to 3,000 tokens, so a few quick questions in a row can hit HTTP 429; the backend then
+answers with rules until the provider's wait is over.
 
 ### API version prefix
 
@@ -236,6 +262,7 @@ docker build -t marketplace-backend:local .   # build the API image without Comp
 - V15: `cart_items.created_at`
 - V16: carriers (`shipments.carrier_id`)
 - V17: order status `COMPLETED`
+- V18: `vector` extension and `policy_chunks` (policy RAG, `vector(3072)`)
 
 Once a migration has been applied, add a new version instead of editing it to avoid Flyway checksum
 mismatches.
@@ -256,8 +283,8 @@ Layered under `com.marketplace` (all features share each layer; class names iden
 - `security` holds the JWT filter and the 401/403 handlers.
 - `repository` also holds `CartCache`, the Redis copy of the cart lines.
 - `ai/tools` has the read-only tools and the shared product search, `ai/rules` the rule-based answerer,
-  `ai/memory` the chat memory over `ai_messages`; `ai/` itself has the rate limiter and the provider
-  cooldown. `ai/rag` is reserved for the RAG phase.
+  `ai/memory` the chat memory over `ai_messages`, `ai/rag` the policy RAG (`PolicyKnowledge`: load the
+  terms file, embed, search pgvector); `ai/` itself has the rate limiter and the provider cooldown.
 - `common/config` holds `WebConfig` (central `/api/v1` prefix) and `OpenApiConfig`, `common/response` holds
   `ApiResponse` and `PageResponse`, `common/exception` the shared exceptions and `GlobalExceptionHandler`,
   `common/util` helpers such as `TimeProvider`, and `common/validation` the request annotations.
