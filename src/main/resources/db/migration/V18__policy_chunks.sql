@@ -7,6 +7,7 @@ CREATE TABLE policy_chunks (
   topic     TEXT NOT NULL,
   title     TEXT NOT NULL,
   content   TEXT NOT NULL,
-  -- 1536 chiều: kích thước vector của text-embedding-3-small.
-  embedding vector(1536) NOT NULL
+  -- 3072 chiều: kích thước vector của gemini-embedding-001. Không tạo index vì chỉ có vài chục dòng
+  -- (index của pgvector cũng không hỗ trợ quá 2000 chiều).
+  embedding vector(3072) NOT NULL
 );
