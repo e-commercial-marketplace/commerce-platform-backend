@@ -9,8 +9,8 @@ import java.util.UUID;
 public interface ReviewService {
 
   /** Customer có order COMPLETED chứa product này mới được đánh giá, và chỉ một lần. */
-  ReviewResponse create(UUID customerId, UUID productId, ReviewCreateRequest request);
+  ReviewResponse createReview(UUID customerId, UUID productId, ReviewCreateRequest request);
 
   /** Đánh giá công khai của một product đang bán, mới nhất trước. */
-  PageResponse<ReviewResponse> list(UUID productId, int page, int size);
+  PageResponse<ReviewResponse> listProductReviews(UUID productId, int page, int size);
 }

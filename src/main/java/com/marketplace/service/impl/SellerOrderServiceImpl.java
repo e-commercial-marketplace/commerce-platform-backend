@@ -10,11 +10,11 @@ import com.marketplace.enums.OrderStatus;
 import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
 import com.marketplace.service.PaymentService;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.SellerOrderService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
   private final OrderItemRepository orderItemRepository;
   private final OrderRepository orderRepository;
   private final ShipmentOrderItemRepository shipmentOrderItemRepository;
-  private final ProductRepository productRepository;
+  private final ProductService productService;
   private final UserRepository userRepository;
   private final OrderService orderService;
   private final PaymentService paymentService;
@@ -46,7 +46,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<OrderItemResponse> list(
+  public PageResponse<OrderItemResponse> listMyOrderItems(
       UUID sellerId, OrderItemStatus status, UUID orderId, int page, int size) {
     userRepository.getApprovedSeller(sellerId);
     // Order mới nhất trước; id làm khoá phụ để thứ tự ổn định giữa các trang.
@@ -58,7 +58,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
 
   @Override
   @Transactional
-  public OrderItemResponse confirm(UUID sellerId, UUID orderItemId) {
+  public OrderItemResponse confirmOrderItem(UUID sellerId, UUID orderItemId) {
     userRepository.getApprovedSeller(sellerId);
     OrderItem item = lockOwnedItem(sellerId, orderItemId);
     // Chỉ đi được từ PENDING, ngược lại 400.
@@ -68,7 +68,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
     // Order trả trước qua VNPAY chỉ được xác nhận khi đã PAID (FR-FUL-05), để seller không chuẩn bị hàng
     // cho đơn khách chưa trả tiền.
     Order order = item.getOrder();
-    if (paymentService.isPrepayment(order) && order.getStatus() != OrderStatus.PAID) {
+    if (paymentService.isPaidByVnpay(order) && order.getStatus() != OrderStatus.PAID) {
       throw BusinessException.validation("The order is not paid yet");
     }
     item.setStatus(OrderItemStatus.CONFIRMED);
@@ -77,7 +77,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
 
   @Override
   @Transactional
-  public OrderItemResponse cancel(UUID sellerId, UUID orderItemId, String reason) {
+  public OrderItemResponse cancelOrderItem(UUID sellerId, UUID orderItemId, String reason) {
     // Bước 1: seller đã duyệt, dòng hàng tồn tại (404) và là của seller này (403). Dòng được khoá.
     userRepository.getApprovedSeller(sellerId);
     OrderItem item = lockOwnedItem(sellerId, orderItemId);
@@ -95,11 +95,11 @@ public class SellerOrderServiceImpl implements SellerOrderService {
       throw BusinessException.cannotCancelAfterPayment("The order is already paid");
     }
     // Bước 4: huỷ dòng (dòng đã huỷ thì 400, nên bước trả kho dưới đây chỉ chạy đúng một lần).
-    orderService.cancelItem(item, reason);
-    productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
+    orderService.cancelOrderItem(item, reason);
+    productService.increaseStock(item.getProduct().getId(), item.getQuantity());
     // Bước 5: tính lại tổng và đồng bộ payment đang chờ (COD nhận tổng mới, VNPAY thành FAILED); không
     // còn dòng nào thì order CANCELLED và mọi payment đang chờ FAILED.
-    orderService.recalculateAfterCancellation(order);
+    orderService.recalculateTotalsAfterCancel(order);
     return orderMapper.toItem(item);
   }
 

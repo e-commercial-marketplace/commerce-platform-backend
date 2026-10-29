@@ -44,7 +44,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<UserResponse> list(Role role, String search, int page, int size) {
+  public PageResponse<UserResponse> listUsers(Role role, String search, int page, int size) {
     Specification<User> spec = Specification.where(null);
     if (role != null) {
       spec = spec.and(UserSpecifications.hasRole(role));
@@ -58,20 +58,20 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional(readOnly = true)
-  public UserResponse get(UUID id) {
+  public UserResponse getUser(UUID id) {
     return userMapper.toResponse(userRepository.getRequired(id));
   }
 
   @Override
   @Transactional
-  public UserResponse create(AdminUserCreateRequest request) {
+  public UserResponse createUser(AdminUserCreateRequest request) {
     String email = Emails.normalize(request.email());
     if (userRepository.existsByEmailIgnoreCase(email)) {
       throw emailTaken();
     }
-    // newUser tự đặt SELLER ở trạng thái PENDING; admin duyệt sau bằng endpoint approve.
+    // buildNewUser tự đặt SELLER ở trạng thái PENDING; admin duyệt sau bằng endpoint approve.
     User user =
-        userService.newUser(
+        userService.buildNewUser(
             email, passwordEncoder.encode(request.password()), request.name().trim(), request.role());
     user.setEnabled(request.enabled() == null || request.enabled());
     userService.updateContact(user, request.phone(), request.address()); // admin nhập sẵn liên hệ (tuỳ chọn)
@@ -86,7 +86,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   @Transactional
   // Tên, role hay trạng thái duyệt đổi thì trang shop đổi (hoặc thành 404): xoá cache sau khi commit.
   @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#id")
-  public UserResponse update(UUID id, AdminUserUpdateRequest request, UUID actorId) {
+  public UserResponse updateUser(UUID id, AdminUserUpdateRequest request, UUID actorId) {
     User user = userRepository.getRequired(id);
     Role role = request.role() != null ? request.role() : user.getRole();
     if (user.getId().equals(actorId)
@@ -110,7 +110,7 @@ public class AdminUserServiceImpl implements AdminUserService {
 
   @Override
   @Transactional
-  public void disable(UUID id, UUID actorId) {
+  public void disableUser(UUID id, UUID actorId) {
     User user = userRepository.getRequired(id);
     if (user.getId().equals(actorId)) {
       throw selfLockout();
@@ -176,7 +176,7 @@ public class AdminUserServiceImpl implements AdminUserService {
   private void changeEnabled(User user, boolean enabled) {
     user.setEnabled(enabled);
     if (!enabled) {
-      refreshTokenService.revokeAll(user.getId());
+      refreshTokenService.revokeAllRefreshTokens(user.getId());
     }
   }
 

@@ -27,20 +27,20 @@ public class CarrierServiceImpl implements CarrierService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<CarrierResponse> listAll() {
+  public List<CarrierResponse> listAllCarriers() {
     return carrierMapper.toResponses(carrierRepository.findAllByOrderByNameAsc());
   }
 
   @Override
   @Transactional(readOnly = true)
-  public List<CarrierResponse> listActive(UUID sellerId) {
+  public List<CarrierResponse> listActiveCarriers(UUID sellerId) {
     userRepository.getApprovedSeller(sellerId); // seller chưa được duyệt thì 403
     return carrierMapper.toResponses(carrierRepository.findByActiveTrueOrderByNameAsc());
   }
 
   @Override
   @Transactional
-  public CarrierResponse create(CarrierCreateRequest request) {
+  public CarrierResponse createCarrier(CarrierCreateRequest request) {
     // Bước 1: bỏ khoảng trắng hai đầu, tên đã có (không phân biệt hoa thường) thì 400.
     String name = request.name().trim();
     if (carrierRepository.existsByNameIgnoreCase(name)) {
@@ -52,7 +52,7 @@ public class CarrierServiceImpl implements CarrierService {
 
   @Override
   @Transactional
-  public CarrierResponse update(UUID id, CarrierUpdateRequest request) {
+  public CarrierResponse updateCarrier(UUID id, CarrierUpdateRequest request) {
     Carrier carrier =
         carrierRepository.findById(id).orElseThrow(() -> BusinessException.notFound("Carrier", id));
     if (request.name() != null) {

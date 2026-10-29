@@ -11,12 +11,12 @@ import java.util.UUID;
 public interface ShipmentService {
 
   /** Tạo shipment từ các dòng đã CONFIRMED của seller trong một order. */
-  ShipmentResponse create(UUID sellerId, ShipmentCreateRequest request);
+  ShipmentResponse createShipment(UUID sellerId, ShipmentCreateRequest request);
 
   /** Shipment của seller, mới nhất trước, lọc tuỳ chọn theo trạng thái và order. */
-  PageResponse<ShipmentResponse> list(
+  PageResponse<ShipmentResponse> listMyShipments(
       UUID sellerId, ShipmentStatus status, UUID orderId, int page, int size);
 
   /** Đổi trạng thái shipment, kèm trả kho, huỷ dòng hoặc hoàn tất order khi cần. */
-  ShipmentResponse updateStatus(UUID sellerId, UUID shipmentId, ShipmentStatusUpdateRequest request);
+  ShipmentResponse updateShipmentStatus(UUID sellerId, UUID shipmentId, ShipmentStatusUpdateRequest request);
 }

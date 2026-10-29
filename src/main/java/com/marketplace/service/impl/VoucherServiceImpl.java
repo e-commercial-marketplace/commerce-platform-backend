@@ -34,7 +34,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<VoucherResponse> list(int page, int size) {
+  public PageResponse<VoucherResponse> listVouchers(int page, int size) {
     // Voucher bắt đầu gần đây nhất trước; code làm khoá phụ cho thứ tự ổn định giữa các trang.
     PageRequest pageable =
         PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "validFrom").and(Sort.by("code")));
@@ -43,7 +43,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional
-  public VoucherResponse create(VoucherCreateRequest request) {
+  public VoucherResponse createVoucher(VoucherCreateRequest request) {
     String code = normalize(request.code());
     if (voucherRepository.existsById(code)) {
       throw duplicateCode();
@@ -74,7 +74,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional
-  public VoucherResponse update(String code, VoucherUpdateRequest request) {
+  public VoucherResponse updateVoucher(String code, VoucherUpdateRequest request) {
     Voucher voucher = find(code);
     // Trường null thì giữ nguyên; code không đổi được.
     if (request.description() != null) voucher.setDescription(request.description());
@@ -95,7 +95,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional
-  public VoucherResponse expire(String code) {
+  public VoucherResponse expireVoucher(String code) {
     Voucher voucher = find(code);
     // Hết hạn ngay (không xoá, để giữ lịch sử). Voucher chưa bắt đầu thì lùi validFrom về ngay trước now,
     // vì DB bắt buộc validFrom < validTo. Cắt xuống micro giây: DB chỉ lưu tới micro giây và làm tròn, nếu
@@ -110,7 +110,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional(readOnly = true)
-  public VoucherResponse validate(String code) {
+  public VoucherResponse checkVoucherUsable(String code) {
     Voucher voucher = find(code);
     checkUsable(voucher, timeProvider.now());
     return voucherMapper.toResponse(voucher);
@@ -118,7 +118,7 @@ public class VoucherServiceImpl implements VoucherService {
 
   @Override
   @Transactional
-  public Voucher consume(String code, Instant now) {
+  public Voucher useVoucher(String code, Instant now) {
     String normalized = normalize(code);
     // Trừ lượt bằng một câu UPDATE có điều kiện; được thì đọc voucher (đã có lượt mới) để gắn vào order.
     if (voucherRepository.consume(normalized, now) == 1) {

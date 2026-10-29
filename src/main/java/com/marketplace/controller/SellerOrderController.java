@@ -43,13 +43,13 @@ public class SellerOrderController {
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     return ResponseEntity.ok(
-        ApiResponse.ok(sellerOrderService.list(me.id(), status, orderId, page, size)));
+        ApiResponse.ok(sellerOrderService.listMyOrderItems(me.id(), status, orderId, page, size)));
   }
 
   @PatchMapping("/{id}/confirm")
   public ResponseEntity<ApiResponse<OrderItemResponse>> confirm(
       @AuthenticationPrincipal AuthUser me, @PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(sellerOrderService.confirm(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(sellerOrderService.confirmOrderItem(me.id(), id)));
   }
 
   // Body tuỳ chọn: không gửi body thì huỷ không có lý do.
@@ -59,6 +59,6 @@ public class SellerOrderController {
       @PathVariable UUID id,
       @Valid @RequestBody(required = false) OrderItemCancelRequest request) {
     String reason = request == null ? null : request.cancelReason();
-    return ResponseEntity.ok(ApiResponse.ok(sellerOrderService.cancel(me.id(), id, reason)));
+    return ResponseEntity.ok(ApiResponse.ok(sellerOrderService.cancelOrderItem(me.id(), id, reason)));
   }
 }

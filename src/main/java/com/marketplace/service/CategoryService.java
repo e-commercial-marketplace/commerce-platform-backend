@@ -9,17 +9,17 @@ import java.util.UUID;
 public interface CategoryService {
 
   /** Toàn bộ category, sắp theo tên (public). */
-  List<CategorySummaryResponse> listAll();
+  List<CategorySummaryResponse> listCategories();
 
   /** Admin tạo category. Lỗi 400 nếu tên trống hoặc đã tồn tại. */
-  CategorySummaryResponse create(CategoryRequest request);
+  CategorySummaryResponse createCategory(CategoryRequest request);
 
   /**
    * Admin đổi tên category. Lỗi 404 nếu không có category, 400 nếu tên trống hoặc đã thuộc category
    * khác.
    */
-  CategorySummaryResponse rename(UUID id, CategoryRequest request);
+  CategorySummaryResponse renameCategory(UUID id, CategoryRequest request);
 
   /** Admin xoá category. Lỗi 404 nếu không có category, 400 nếu category còn product. */
-  void delete(UUID id);
+  void deleteCategory(UUID id);
 }

@@ -46,18 +46,18 @@ public class AdminUserController {
       @RequestParam(required = false) String search,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return ResponseEntity.ok(ApiResponse.ok(adminUserService.list(role, search, page, size)));
+    return ResponseEntity.ok(ApiResponse.ok(adminUserService.listUsers(role, search, page, size)));
   }
 
   @GetMapping("/users/{id}")
   public ResponseEntity<ApiResponse<UserResponse>> get(@PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(adminUserService.get(id)));
+    return ResponseEntity.ok(ApiResponse.ok(adminUserService.getUser(id)));
   }
 
   @PostMapping("/users")
   public ResponseEntity<ApiResponse<UserResponse>> create(
       @Valid @RequestBody AdminUserCreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(adminUserService.create(request)));
+    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(adminUserService.createUser(request)));
   }
 
   @PatchMapping("/users/{id}")
@@ -65,13 +65,13 @@ public class AdminUserController {
       @PathVariable UUID id,
       @Valid @RequestBody AdminUserUpdateRequest request,
       @AuthenticationPrincipal AuthUser me) {
-    return ResponseEntity.ok(ApiResponse.ok(adminUserService.update(id, request, me.id())));
+    return ResponseEntity.ok(ApiResponse.ok(adminUserService.updateUser(id, request, me.id())));
   }
 
   // 204 No Content: tài khoản được vô hiệu hoá (không xoá dòng) và không có body.
   @DeleteMapping("/users/{id}")
   public ResponseEntity<Void> disable(@PathVariable UUID id, @AuthenticationPrincipal AuthUser me) {
-    adminUserService.disable(id, me.id());
+    adminUserService.disableUser(id, me.id());
     return ResponseEntity.noContent().build();
   }
 

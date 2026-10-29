@@ -23,7 +23,6 @@ import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.CartCache;
 import com.marketplace.repository.CartItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
 import com.marketplace.service.PaymentService;
@@ -66,7 +65,6 @@ public class OrderServiceImpl implements OrderService {
   private final UserRepository userRepository;
   private final CartItemRepository cartItemRepository;
   private final CartCache cartCache;
-  private final ProductRepository productRepository;
   private final OrderRepository orderRepository;
   private final PaymentService paymentService;
   private final ProductService productService;
@@ -98,8 +96,8 @@ public class OrderServiceImpl implements OrderService {
     // một thứ tự, tránh deadlock khi hai người mua chéo nhau các món giống nhau.
     for (CartItem line : lines.stream().sorted(Comparator.comparing(l -> l.getProduct().getId())).toList()) {
       Product product = line.getProduct();
-      productService.ensureActive(product);
-      if (productRepository.decreaseStock(product.getId(), line.getQuantity()) != 1) {
+      productService.requireListed(product);
+      if (!productService.decreaseStock(product.getId(), line.getQuantity())) {
         throw BusinessException.insufficientStock("Not enough stock for " + product.getName());
       }
     }
@@ -125,7 +123,7 @@ public class OrderServiceImpl implements OrderService {
     // Có mã voucher: trừ một lượt (hết hạn, hết lượt hay không có thì lỗi và cả checkout hoàn tác) rồi áp
     // giảm giá, TRƯỚC khi tạo payment để COD và VNPAY nhận đúng tổng sau giảm.
     if (request.voucherCode() != null && !request.voucherCode().isBlank()) {
-      order.setVoucher(voucherService.consume(request.voucherCode(), timeProvider.now()));
+      order.setVoucher(voucherService.useVoucher(request.voucherCode(), timeProvider.now()));
     }
     recalculateTotal(order);
     orderRepository.save(order); // lưu kèm các dòng hàng (cascade PERSIST)
@@ -134,9 +132,9 @@ public class OrderServiceImpl implements OrderService {
     // chờ khách trả tiền, kèm link thanh toán có chữ ký (hạn 24 giờ tính từ lúc đặt).
     String paymentUrl = null;
     if (request.paymentMethod() == PaymentMethod.VNPAY) {
-      paymentUrl = paymentService.openVnpayAttempt(order, clientIp);
+      paymentUrl = paymentService.createVnpayPayment(order, clientIp);
     } else {
-      paymentService.openCod(order);
+      paymentService.createCodPayment(order);
     }
 
     // Bước 7: xoá các dòng đã mua; các dòng không chọn vẫn ở lại giỏ.
@@ -147,7 +145,7 @@ public class OrderServiceImpl implements OrderService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<OrderSummaryResponse> listOrders(UUID customerId, int page, int size) {
+  public PageResponse<OrderSummaryResponse> listMyOrders(UUID customerId, int page, int size) {
     return PageResponse.from(
         orderRepository.findByCustomerId(customerId, Pages.newestFirst(page, size)),
         orderMapper::toSummary);
@@ -155,7 +153,7 @@ public class OrderServiceImpl implements OrderService {
 
   @Override
   @Transactional(readOnly = true)
-  public OrderResponse getOrder(UUID customerId, UUID orderId) {
+  public OrderResponse getMyOrder(UUID customerId, UUID orderId) {
     return orderRepository
         .findByIdAndCustomerId(orderId, customerId)
         .map(order -> orderMapper.toResponse(order, null))
@@ -164,7 +162,7 @@ public class OrderServiceImpl implements OrderService {
 
   @Override
   @Transactional
-  public OrderResponse confirmReceived(UUID customerId, UUID orderId) {
+  public OrderResponse confirmOrderReceived(UUID customerId, UUID orderId) {
     // Khoá order (cùng khoá với các luồng đổi trạng thái khác); của customer khác thì 404 như không tồn tại.
     Order order =
         orderRepository
@@ -180,7 +178,7 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
-  public void cancelItem(OrderItem item, String reason) {
+  public void cancelOrderItem(OrderItem item, String reason) {
     if (item.getStatus() == OrderItemStatus.CANCELLED) {
       throw BusinessException.validation("Order item is already cancelled");
     }
@@ -189,7 +187,7 @@ public class OrderServiceImpl implements OrderService {
   }
 
   @Override
-  public void recalculateAfterCancellation(Order order) {
+  public void recalculateTotalsAfterCancel(Order order) {
     if (order.getItems().stream().allMatch(OrderServiceImpl::isCancelled)) {
       order.setStatus(OrderStatus.CANCELLED);
       order.setDiscountAmount(ZERO);
@@ -197,11 +195,11 @@ public class OrderServiceImpl implements OrderService {
     } else {
       recalculateTotal(order);
     }
-    paymentService.syncPendingPayments(order);
+    paymentService.updatePendingPaymentsAfterCancel(order);
   }
 
   @Override
-  public void completeIfAllDelivered(Order order, Instant now) {
+  public void markDeliveredIfAllShipped(Order order, Instant now) {
     if (order.getStatus() != OrderStatus.PENDING && order.getStatus() != OrderStatus.PAID) {
       return;
     }
@@ -220,31 +218,31 @@ public class OrderServiceImpl implements OrderService {
             .allMatch(item -> delivered.contains(item.getId()));
     if (allDelivered) {
       order.setStatus(OrderStatus.DELIVERED);
-      paymentService.completeCod(order, now);
+      paymentService.markCodCollected(order, now);
     }
   }
 
   @Override
   @Transactional
-  public boolean cancelExpiredOrder(UUID orderId, Instant now) {
+  public boolean cancelUnpaidVnpayOrder(UUID orderId, Instant now) {
     // Khoá order rồi kiểm lại: có thể khách vừa trả tiền xong sau lúc job lấy danh sách.
     Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
     if (order == null
         || order.getStatus() != OrderStatus.PENDING
-        || !paymentService.isPrepayment(order)
+        || !paymentService.isPaidByVnpay(order)
         || paymentService.hasCompletedPayment(order)
-        || !paymentService.isPastDeadline(order, now)) {
+        || !paymentService.isPaymentDeadlinePassed(order, now)) {
       return false;
     }
     // Huỷ các dòng còn lại (dòng đã huỷ từ trước không bị cộng kho lần hai), rồi trả kho theo thứ tự id
     // product (giống checkout) để không khoá chéo với các giao dịch khác.
     List<OrderItem> remaining = order.getItems().stream().filter(item -> !isCancelled(item)).toList();
-    remaining.forEach(item -> cancelItem(item, EXPIRED_REASON));
+    remaining.forEach(item -> cancelOrderItem(item, EXPIRED_REASON));
     remaining.stream()
         .sorted(Comparator.comparing(item -> item.getProduct().getId()))
-        .forEach(item -> productRepository.increaseStock(item.getProduct().getId(), item.getQuantity()));
+        .forEach(item -> productService.increaseStock(item.getProduct().getId(), item.getQuantity()));
     // Không còn dòng nào: order CANCELLED, tổng 0.00, payment đang chờ FAILED.
-    recalculateAfterCancellation(order);
+    recalculateTotalsAfterCancel(order);
     return true;
   }
 

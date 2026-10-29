@@ -55,7 +55,7 @@ public class AuthServiceImpl implements AuthService {
     }
     // Bước 5: tạo người dùng mới. Mật khẩu được băm TRƯỚC khi lưu, không bao giờ lưu mật khẩu thô.
     User user =
-        userService.newUser(
+        userService.buildNewUser(
             email, passwordEncoder.encode(request.password()), request.name().trim(), role);
     try {
       // Bước 6: lưu vào DB. Flush ngay để vi phạm unique (hai request đăng ký cùng email song song) bật ra tại đây.
@@ -90,14 +90,14 @@ public class AuthServiceImpl implements AuthService {
   @Override
   @Transactional
   public AuthResponse refresh(RefreshTokenRequest request) {
-    return issueTokens(refreshTokenService.consume(request.refreshToken()));
+    return issueTokens(refreshTokenService.useRefreshToken(request.refreshToken()));
   }
 
   // Đăng xuất = thu hồi refresh token. currentUserId lấy từ access token để chỉ thu hồi token của chính mình.
   @Override
   @Transactional
   public void logout(RefreshTokenRequest request, UUID currentUserId) {
-    refreshTokenService.revoke(request.refreshToken(), currentUserId);
+    refreshTokenService.revokeRefreshToken(request.refreshToken(), currentUserId);
   }
 
   // Đổi mật khẩu khi đã đăng nhập. currentUserId lấy từ access token, không nhận từ client.
@@ -120,7 +120,7 @@ public class AuthServiceImpl implements AuthService {
     }
     // Bước 5: lưu hash của mật khẩu mới, rồi thu hồi mọi refresh token cũ (các thiết bị khác bị đăng xuất).
     user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-    refreshTokenService.revokeAll(user.getId());
+    refreshTokenService.revokeAllRefreshTokens(user.getId());
     // Bước 6: cấp cặp token mới cho thiết bị hiện tại. Token mới được tạo SAU khi thu hồi nên không bị thu hồi theo.
     return issueTokens(user);
   }
@@ -129,8 +129,8 @@ public class AuthServiceImpl implements AuthService {
   private AuthResponse issueTokens(User user) {
     return new AuthResponse(
         jwtService.generateAccessToken(user), // access token (JWT, sống ngắn)
-        refreshTokenService.issue(user), // refresh token (chuỗi ngẫu nhiên, hash lưu DB)
-        jwtService.accessExpiresInSeconds(), // access token sống bao nhiêu giây
+        refreshTokenService.createRefreshToken(user), // refresh token (chuỗi ngẫu nhiên, hash lưu DB)
+        jwtService.accessTokenLifetimeSeconds(), // access token sống bao nhiêu giây
         userMapper.toSummary(user)); // thông tin người dùng (không có mật khẩu)
   }
 

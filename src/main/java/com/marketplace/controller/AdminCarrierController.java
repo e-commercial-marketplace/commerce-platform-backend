@@ -32,18 +32,18 @@ public class AdminCarrierController {
 
   @GetMapping
   public ResponseEntity<ApiResponse<List<CarrierResponse>>> list() {
-    return ResponseEntity.ok(ApiResponse.ok(carrierService.listAll()));
+    return ResponseEntity.ok(ApiResponse.ok(carrierService.listAllCarriers()));
   }
 
   @PostMapping
   public ResponseEntity<ApiResponse<CarrierResponse>> create(
       @Valid @RequestBody CarrierCreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(carrierService.create(request)));
+    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(carrierService.createCarrier(request)));
   }
 
   @PatchMapping("/{id}")
   public ResponseEntity<ApiResponse<CarrierResponse>> update(
       @PathVariable UUID id, @Valid @RequestBody CarrierUpdateRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(carrierService.update(id, request)));
+    return ResponseEntity.ok(ApiResponse.ok(carrierService.updateCarrier(id, request)));
   }
 }

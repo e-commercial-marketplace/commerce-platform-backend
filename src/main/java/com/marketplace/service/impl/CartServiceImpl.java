@@ -75,7 +75,7 @@ public class CartServiceImpl implements CartService {
 
   @Override
   @Transactional
-  public CartResponse addItem(UUID customerId, CartItemAddRequest request) {
+  public CartResponse addToCart(UUID customerId, CartItemAddRequest request) {
     // Bước 1: khoá dòng user để các thao tác sửa giỏ của cùng customer chạy lần lượt (xem UserRepository.lockRequired).
     User customer = userRepository.lockRequired(customerId);
     // Bước 2: product phải tồn tại (404) và còn bán (400 PRODUCT_INACTIVE).
@@ -83,7 +83,7 @@ public class CartServiceImpl implements CartService {
         productRepository
             .findById(request.productId())
             .orElseThrow(() -> BusinessException.notFound("Product", request.productId()));
-    productService.ensureActive(product);
+    productService.requireListed(product);
     // Bước 3: đã có dòng thì cộng dồn, chưa có thì tạo mới. Kiểm tồn kho trên TỔNG số lượng.
     CartItem existing =
         cartItemRepository.findByUserIdAndProductId(customerId, product.getId()).orElse(null);
@@ -109,11 +109,11 @@ public class CartServiceImpl implements CartService {
 
   @Override
   @Transactional
-  public CartResponse updateItem(UUID customerId, UUID cartItemId, CartItemUpdateRequest request) {
+  public CartResponse changeItemQuantity(UUID customerId, UUID cartItemId, CartItemUpdateRequest request) {
     userRepository.lockRequired(customerId);
     CartItem item = findOwnedItem(customerId, cartItemId);
     // Đặt lại số lượng (không cộng dồn); product vẫn phải còn bán và đủ hàng.
-    productService.ensureActive(item.getProduct());
+    productService.requireListed(item.getProduct());
     requireStock(item.getProduct(), request.quantity());
     item.setQuantity(request.quantity());
     cartCache.evictAfterCommit(customerId);
@@ -122,7 +122,7 @@ public class CartServiceImpl implements CartService {
 
   @Override
   @Transactional
-  public CartResponse removeItem(UUID customerId, UUID cartItemId) {
+  public CartResponse removeFromCart(UUID customerId, UUID cartItemId) {
     userRepository.lockRequired(customerId);
     // Xoá được cả dòng có product đã ẩn hay hết hàng: đó chính là cách khách dọn giỏ.
     cartItemRepository.delete(findOwnedItem(customerId, cartItemId));

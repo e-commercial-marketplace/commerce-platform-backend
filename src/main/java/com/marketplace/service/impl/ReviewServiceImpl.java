@@ -13,6 +13,7 @@ import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ReviewRepository;
 import com.marketplace.repository.UserRepository;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.ReviewService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   private final ReviewRepository reviewRepository;
   private final ProductRepository productRepository;
+  private final ProductService productService;
   private final OrderItemRepository orderItemRepository;
   private final UserRepository userRepository;
   private final ReviewMapper reviewMapper;
@@ -34,7 +36,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Override
   @Transactional
-  public ReviewResponse create(UUID customerId, UUID productId, ReviewCreateRequest request) {
+  public ReviewResponse createReview(UUID customerId, UUID productId, ReviewCreateRequest request) {
     // Bước 1: product phải đang bán (không có hoặc đã ẩn thì 404).
     Product product = findVisibleProduct(productId);
     // Bước 2: phải có order COMPLETED chứa dòng chưa huỷ của product này (403), và chưa đánh giá lần nào (409).
@@ -60,13 +62,13 @@ public class ReviewServiceImpl implements ReviewService {
       throw alreadyReviewed();
     }
     // Bước 3: cộng vào điểm trung bình và số lượt đánh giá của product (một câu UPDATE).
-    productRepository.addRating(productId, request.rating());
+    productService.addRating(productId, request.rating());
     return reviewMapper.toResponse(review);
   }
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<ReviewResponse> list(UUID productId, int page, int size) {
+  public PageResponse<ReviewResponse> listProductReviews(UUID productId, int page, int size) {
     findVisibleProduct(productId);
     return PageResponse.from(
         reviewRepository.findByProductId(productId, Pages.newestFirst(page, size)),

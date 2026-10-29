@@ -47,7 +47,7 @@ public class UserServiceImpl implements UserService {
   }
 
   @Override
-  public User newUser(String email, String passwordHash, String fullName, Role role) {
+  public User buildNewUser(String email, String passwordHash, String fullName, Role role) {
     return User.builder()
         .email(email)
         .passwordHash(passwordHash)

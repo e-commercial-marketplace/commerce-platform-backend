@@ -31,19 +31,19 @@ public class AdminCategoryController {
   @PostMapping
   public ResponseEntity<ApiResponse<CategorySummaryResponse>> create(
       @Valid @RequestBody CategoryRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(categoryService.create(request)));
+    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(categoryService.createCategory(request)));
   }
 
   @PatchMapping("/{id}")
   public ResponseEntity<ApiResponse<CategorySummaryResponse>> rename(
       @PathVariable UUID id, @Valid @RequestBody CategoryRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(categoryService.rename(id, request)));
+    return ResponseEntity.ok(ApiResponse.ok(categoryService.renameCategory(id, request)));
   }
 
   // 204 No Content: xoá thành công và không có body.
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> delete(@PathVariable UUID id) {
-    categoryService.delete(id);
+    categoryService.deleteCategory(id);
     return ResponseEntity.noContent().build();
   }
 }

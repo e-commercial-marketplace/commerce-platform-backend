@@ -23,6 +23,7 @@ import com.marketplace.service.SellerProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -41,7 +42,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   // Danh sách product của chính seller. Chỉ đọc nên khai báo readOnly.
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<ProductSummaryResponse> list(
+  public PageResponse<ProductSummaryResponse> listMyProducts(
       UUID sellerId, String q, Boolean active, int page, int size) {
     // Bước 1: seller phải được duyệt.
     userRepository.getApprovedSeller(sellerId);
@@ -64,7 +65,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   // Chi tiết một product của chính seller (kể cả đã ẩn). Chỉ đọc nên khai báo readOnly.
   @Override
   @Transactional(readOnly = true)
-  public ProductResponse get(UUID sellerId, UUID productId) {
+  public ProductResponse getMyProduct(UUID sellerId, UUID productId) {
     userRepository.getApprovedSeller(sellerId); // seller đã duyệt chưa?
     // Không có product thì 404, của seller khác thì 403 (cùng quy tắc với sửa, xoá).
     return productMapper.toResponse(findOwnedProduct(sellerId, productId));
@@ -75,7 +76,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   @Transactional
   // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
   @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
-  public ProductResponse create(UUID sellerId, ProductCreateRequest request) {
+  public ProductResponse createProduct(UUID sellerId, ProductCreateRequest request) {
     // Bước 1: seller phải được duyệt (APPROVED), nếu không ném 403.
     User seller = userRepository.getApprovedSeller(sellerId);
     // Bước 2: category phải tồn tại, nếu không ném 400.
@@ -104,9 +105,13 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
-  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
-  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
-  public ProductResponse update(UUID sellerId, UUID productId, ProductUpdateRequest request) {
+  // Số product đang bán của shop và chi tiết product có thể đổi: xoá cả hai cache sau khi commit.
+  @Caching(
+      evict = {
+        @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId"),
+        @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+      })
+  public ProductResponse updateProduct(UUID sellerId, UUID productId, ProductUpdateRequest request) {
     // Bước 1: seller đã duyệt chưa? Bước 2: product có tồn tại và có phải của seller này không?
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
@@ -137,9 +142,13 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
-  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
-  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
-  public void delete(UUID sellerId, UUID productId) {
+  // Product bị ẩn: trang shop bớt một product, chi tiết phải thành 404 ngay.
+  @Caching(
+      evict = {
+        @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId"),
+        @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+      })
+  public void hideProduct(UUID sellerId, UUID productId) {
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
     // Xoá mềm: chỉ ẩn khỏi danh sách công khai, KHÔNG xoá dòng dữ liệu.
@@ -148,6 +157,7 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
+  @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId") // tồn kho trong chi tiết đổi
   public ProductResponse updateStock(UUID sellerId, UUID productId, StockUpdateRequest request) {
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);

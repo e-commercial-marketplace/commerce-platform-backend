@@ -49,7 +49,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
 
   @Override
   @Transactional
-  public void requestReset(ForgotPasswordRequest request) {
+  public void sendResetCode(ForgotPasswordRequest request) {
     // Bước 1: tìm tài khoản. Không có hoặc đã bị khoá thì dừng im lặng: response vẫn y như khi thành công.
     User user = userRepository.findByEmailIgnoreCase(Emails.normalize(request.email())).orElse(null);
     // Log chỉ nằm ở server (không trả cho client) để người vận hành biết vì sao không có email.
@@ -115,7 +115,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
     codeRepository.invalidateAll(user.getId(), now);
     // Bước 5: đăng xuất mọi thiết bị: refresh token cũ không đổi được token mới nữa.
-    refreshTokenService.revokeAll(user.getId());
+    refreshTokenService.revokeAllRefreshTokens(user.getId());
   }
 
   /** Được cấp mã mới khi: mã gần nhất đã qua thời gian chờ, và số mã trong một giờ chưa đủ giới hạn. */

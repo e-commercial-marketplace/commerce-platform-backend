@@ -34,7 +34,7 @@ public class AiController {
   @PostMapping("/ask")
   public ResponseEntity<ApiResponse<AiProductSearchResponse>> ask(
       @AuthenticationPrincipal AuthUser me, @Valid @RequestBody AiAskRequest request, HttpServletRequest http) {
-    return ResponseEntity.ok(ApiResponse.ok(aiService.ask(me, request, ClientIp.of(http))));
+    return ResponseEntity.ok(ApiResponse.ok(aiService.answerQuestion(me, request, ClientIp.of(http))));
   }
 
   @GetMapping("/sessions")
@@ -45,6 +45,6 @@ public class AiController {
   @GetMapping("/sessions/{id}/messages")
   public ResponseEntity<ApiResponse<List<AiMessageResponse>>> messages(
       @AuthenticationPrincipal AuthUser me, @PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(aiService.listMessages(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(aiService.listSessionMessages(me.id(), id)));
   }
 }

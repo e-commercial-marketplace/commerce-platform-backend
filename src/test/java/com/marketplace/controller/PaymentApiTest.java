@@ -282,10 +282,10 @@ class PaymentApiTest {
     List<UUID> expired = orders.findExpiredPrepaymentOrderIds(Instant.now().plus(Duration.ofMinutes(1)));
     assertThat(expired).contains(orderId).doesNotContain(codOrder);
 
-    assertThat(orderService.cancelExpiredOrder(orderId, createdAt.plus(Duration.ofHours(23)))).isFalse();
-    assertThat(orderService.cancelExpiredOrder(orderId, createdAt.plus(Duration.ofHours(25)))).isTrue();
-    assertThat(orderService.cancelExpiredOrder(orderId, createdAt.plus(Duration.ofHours(26)))).isFalse();
-    assertThat(orderService.cancelExpiredOrder(codOrder, createdAt.plus(Duration.ofHours(25)))).isFalse();
+    assertThat(orderService.cancelUnpaidVnpayOrder(orderId, createdAt.plus(Duration.ofHours(23)))).isFalse();
+    assertThat(orderService.cancelUnpaidVnpayOrder(orderId, createdAt.plus(Duration.ofHours(25)))).isTrue();
+    assertThat(orderService.cancelUnpaidVnpayOrder(orderId, createdAt.plus(Duration.ofHours(26)))).isFalse();
+    assertThat(orderService.cancelUnpaidVnpayOrder(codOrder, createdAt.plus(Duration.ofHours(25)))).isFalse();
 
     assertThat(stockOf(phone)).isEqualTo(10); // trả kho đúng một lần
     order(orderId.toString())
@@ -320,7 +320,7 @@ class PaymentApiTest {
     Instant createdAt = Instant.parse(JsonPath.read(body, "$.data.createdAt"));
     ipn(vnpayResult(paymentUrlOf(body), "00"));
 
-    assertThat(orderService.cancelExpiredOrder(orderId, createdAt.plus(Duration.ofHours(25)))).isFalse();
+    assertThat(orderService.cancelUnpaidVnpayOrder(orderId, createdAt.plus(Duration.ofHours(25)))).isFalse();
     order(orderId.toString()).andExpect(jsonPath("$.data.status").value("PAID"));
   }
 

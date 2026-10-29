@@ -1,9 +1,11 @@
 package com.marketplace.controller;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -11,11 +13,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.marketplace.entity.Category;
+import com.marketplace.entity.Product;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
 import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
+import com.marketplace.service.ProductService;
 import com.marketplace.support.TestSupport;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,13 +33,16 @@ import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.cache.transaction.TransactionAwareCacheManagerProxy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * Cache danh sách category và trang shop (architecture §5.4). Redis được thay bằng cache trong bộ nhớ, cũng
+ * Cache danh sách category, trang shop, chi tiết và danh sách product (architecture §5.4). Redis được thay bằng cache trong bộ nhớ, cũng
  * ghi và xoá sau commit như RedisCacheManager.transactionAware(), để kiểm tra annotation: đọc lần hai lấy
  * từ cache, và mọi thay đổi của admin hay seller hiện ra ngay ở lần đọc sau.
  */
@@ -56,6 +63,7 @@ class CatalogCacheApiTest {
   @Autowired private MockMvc mvc;
   @Autowired private TestSupport support;
   @Autowired private CacheManager cacheManager;
+  @Autowired private ProductService productService;
   // Spy: repository thật, chỉ để đếm số lần đọc PostgreSQL.
   @MockitoSpyBean private CategoryRepository categories;
   @MockitoSpyBean private ProductRepository products;
@@ -123,6 +131,67 @@ class CatalogCacheApiTest {
     support.send(mvc, patch("/api/v1/admin/sellers/" + seller.getId() + "/approve"), admin, "{}")
         .andExpect(status().isOk());
     shop().andExpect(status().isOk()).andExpect(jsonPath("$.data.productCount").value(2));
+  }
+
+  @Test
+  void theProductDetailIsCachedAndEveryChangeOfTheProductShowsOnTheNextRead() throws Exception {
+    Product phone = support.product(seller, category, "Cached Phone", "10.00", 10);
+    clearInvocations(products);
+    detail(phone).andExpect(jsonPath("$.data.price").value("10.00"));
+    detail(phone).andExpect(jsonPath("$.data.price").value("10.00"));
+    verify(products, times(1)).findByIdAndActiveTrue(phone.getId()); // lần hai lấy từ cache
+
+    // Seller đổi giá rồi đổi kho.
+    support.send(mvc, patch("/api/v1/seller/products/" + phone.getId()), seller, "{\"price\":\"12.00\"}")
+        .andExpect(status().isOk());
+    detail(phone).andExpect(jsonPath("$.data.price").value("12.00"));
+    support.send(mvc, patch("/api/v1/seller/products/" + phone.getId() + "/stock"), seller, "{\"stock\":7}")
+        .andExpect(status().isOk());
+    detail(phone).andExpect(jsonPath("$.data.stock").value(7));
+
+    // Checkout trừ kho qua ProductService.decreaseStock: chi tiết thấy kho mới ngay.
+    User customer = support.user(Role.CUSTOMER, null);
+    String line = support.addToCart(mvc, customer, phone, 2);
+    support
+        .send(
+            mvc,
+            post("/api/v1/orders"),
+            customer,
+            "{\"cartItemIds\":[\"" + line + "\"],\"shippingAddress\":\"12 Le Loi\",\"paymentMethod\":\"COD\"}")
+        .andExpect(status().isCreated());
+    detail(phone).andExpect(jsonPath("$.data.stock").value(5));
+
+    // Kho được cộng lại (huỷ dòng, trả hàng, đơn quá hạn đều đi qua increaseStock).
+    productService.increaseStock(phone.getId(), 3);
+    detail(phone).andExpect(jsonPath("$.data.stock").value(8));
+
+    // Đổi tên category: chi tiết có tên category nên cũng đổi theo.
+    support.send(mvc, patch("/api/v1/admin/categories/" + category.getId()), admin, "{\"name\":\"Renamed " + UUID.randomUUID() + "\"}")
+        .andExpect(status().isOk());
+    detail(phone).andExpect(jsonPath("$.data.category.name").value(org.hamcrest.Matchers.startsWith("Renamed ")));
+
+    // Seller ẩn product: chi tiết thành 404 ngay.
+    mvc.perform(delete("/api/v1/seller/products/" + phone.getId()).header(HttpHeaders.AUTHORIZATION, support.bearer(seller)))
+        .andExpect(status().isNoContent());
+    detail(phone).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void aSearchPageIsCachedForAShortTime() throws Exception {
+    String name = "Searchable " + UUID.randomUUID().toString().substring(0, 8);
+    support.product(seller, category, name, "10.00", 1);
+    clearInvocations(products);
+    String url = "/api/v1/products?q=" + name;
+    mvc.perform(get(url)).andExpect(jsonPath("$.data.totalElements").value(1));
+    mvc.perform(get(url)).andExpect(jsonPath("$.data.totalElements").value(1));
+    // Lần hai lấy từ cache: chỉ một lần query PostgreSQL. Tham số khác là một key khác.
+    verify(products, times(1)).findAll(any(Specification.class), any(Pageable.class));
+    mvc.perform(get(url + "&sort=price_asc")).andExpect(status().isOk());
+    verify(products, times(2)).findAll(any(Specification.class), any(Pageable.class));
+  }
+
+  private ResultActions detail(Product product) throws Exception {
+    return mvc.perform(get("/api/v1/products/" + product.getId()));
   }
 
   private ResultActions categoryList() throws Exception {

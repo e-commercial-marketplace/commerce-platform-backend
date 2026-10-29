@@ -24,33 +24,33 @@ public interface OrderService {
   OrderResponse checkout(UUID customerId, CheckoutRequest request, String clientIp);
 
   /** Order của customer, mới nhất trước. */
-  PageResponse<OrderSummaryResponse> listOrders(UUID customerId, int page, int size);
+  PageResponse<OrderSummaryResponse> listMyOrders(UUID customerId, int page, int size);
 
   /** Một order của customer; không có hoặc của người khác thì 404. */
-  OrderResponse getOrder(UUID customerId, UUID orderId);
+  OrderResponse getMyOrder(UUID customerId, UUID orderId);
 
   /** Khách xác nhận đã nhận hàng (DELIVERED -> COMPLETED); không có hoặc của người khác thì 404. */
-  OrderResponse confirmReceived(UUID customerId, UUID orderId);
+  OrderResponse confirmOrderReceived(UUID customerId, UUID orderId);
 
   /**
    * Huỷ một dòng hàng (đang PENDING hoặc CONFIRMED). Dòng đã huỷ thì 400, nhờ vậy kho không bị cộng trả
    * hai lần. Lý do trống được lưu là {@code null}. Người gọi tự trả kho rồi gọi
-   * {@link #recalculateAfterCancellation}.
+   * {@link #recalculateTotalsAfterCancel}.
    */
-  void cancelItem(OrderItem item, String reason);
+  void cancelOrderItem(OrderItem item, String reason);
 
   /**
    * Gọi sau khi huỷ dòng: tính lại tổng từ các dòng chưa huỷ (bản chụp của dòng đã huỷ giữ nguyên để xem
    * lịch sử). Không còn dòng nào thì huỷ cả order và tổng về 0.00. Sau đó đồng bộ các payment đang chờ.
    */
-  void recalculateAfterCancellation(Order order);
+  void recalculateTotalsAfterCancel(Order order);
 
   /**
    * Gọi sau khi một shipment chuyển DELIVERED. Mọi dòng chưa huỷ đều đã nằm trong shipment DELIVERED thì
    * order thành DELIVERED và payment COD đang chờ được ghi nhận đã thu (FR-SHIP-07, FR-PAY-02). Còn dòng
    * chưa giao, hoặc có shipment FAILED/RETURNED, thì order giữ nguyên (FR-SHIP-10).
    */
-  void completeIfAllDelivered(Order order, Instant now);
+  void markDeliveredIfAllShipped(Order order, Instant now);
 
   /**
    * Huỷ order trả trước đã quá hạn 24 giờ: huỷ các dòng còn lại, trả kho đúng một lần, payment đang chờ
@@ -58,5 +58,5 @@ public interface OrderService {
    *
    * @return {@code true} nếu order vừa bị huỷ
    */
-  boolean cancelExpiredOrder(UUID orderId, Instant now);
+  boolean cancelUnpaidVnpayOrder(UUID orderId, Instant now);
 }

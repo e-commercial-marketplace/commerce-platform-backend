@@ -19,7 +19,7 @@ SRS, architecture). The contracts are written first; this code follows them.
 | Voucher and review | Platform vouchers (percent, usage limit, window) and product reviews with a rating aggregate |
 | AI assistant | `POST /ai/ask`: LLM with read-only tools (`listCategories`, `searchProducts`, `searchPolicies`), policy RAG over the customer terms (Gemini embeddings + pgvector), per-session chat memory (last 10 messages), rule-based fallback, per-minute limits |
 | Human chat | Customer/seller conversations (get-or-create per pair), message history, sending with an `Idempotency-Key`, read state; plain WebSocket `/ws/chat` pushes new messages and read events |
-| Cache | Optional Redis cache for cart lines, the category list and seller shop pages |
+| Cache | Optional Redis cache for cart lines, the category list, seller shop pages, product detail and product search pages |
 
 Not implemented yet: Google login.
 
@@ -136,9 +136,14 @@ Redis is only a cache: PostgreSQL is always the source of truth and the API work
 | Cart lines | `cart:<userId>` (Hash of product id, quantity, created time) | 30 minutes | the customer changes the cart or checks out |
 | Category list | `categories::all` | 1 hour | an admin creates, renames or deletes a category |
 | Seller shop page | `sellerShops::<sellerId>` | 10 minutes | the seller changes products or name, or an admin edits, approves or suspends the seller |
+| Product detail | `products::<productId>` | 30 minutes | anything changes that product: seller edit, hide or stock change, checkout, stock given back, a new review, any category rename |
+| Product search page | `productSearch::<all search parameters>` | 60 seconds | never; it only expires |
 
-Products are not cached (price and stock change too often), and the cart cache never stores prices or
-stock. When Redis is down the backend logs a warning and reads PostgreSQL. Redis is left out of
+Every stock or rating change goes through `ProductService` (`decreaseStock`, `increaseStock`, `addRating`),
+which clears the product's detail entry. A search page can be up to 60 seconds old (a product hidden or
+repriced a moment ago may still be listed); cart, checkout and orders never read the cache. The cart cache
+never stores prices or stock. When Redis is down (even for the clean-ups that run after commit) the
+backend logs a warning and reads PostgreSQL. Redis is left out of
 `/actuator/health`. Inspect it locally with `docker exec marketplace-redis redis-cli --scan`. On Render,
 create a Key Value instance in the same region (policy `allkeys-lru`), then set `REDIS_URL` to its internal
 URL and `APP_CACHE_ENABLED=true`. Set `APP_CACHE_ENABLED=false` to turn the cache off without a deploy.

@@ -20,11 +20,11 @@ import com.marketplace.mapper.ShipmentMapper;
 import com.marketplace.repository.CarrierRepository;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.ShipmentRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.ShipmentService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -69,7 +69,7 @@ public class ShipmentServiceImpl implements ShipmentService {
   private final OrderItemRepository orderItemRepository;
   private final OrderRepository orderRepository;
   private final CarrierRepository carrierRepository;
-  private final ProductRepository productRepository;
+  private final ProductService productService;
   private final UserRepository userRepository;
   private final OrderService orderService;
   private final ShipmentMapper shipmentMapper;
@@ -77,7 +77,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
   @Override
   @Transactional
-  public ShipmentResponse create(UUID sellerId, ShipmentCreateRequest request) {
+  public ShipmentResponse createShipment(UUID sellerId, ShipmentCreateRequest request) {
     // Bước 1: seller đã duyệt; order phải tồn tại (404).
     User seller = userRepository.getApprovedSeller(sellerId);
     Order order =
@@ -124,7 +124,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<ShipmentResponse> list(
+  public PageResponse<ShipmentResponse> listMyShipments(
       UUID sellerId, ShipmentStatus status, UUID orderId, int page, int size) {
     userRepository.getApprovedSeller(sellerId);
     // Order mới nhất trước; id làm khoá phụ để thứ tự ổn định giữa các trang (giống danh sách dòng hàng).
@@ -137,7 +137,7 @@ public class ShipmentServiceImpl implements ShipmentService {
 
   @Override
   @Transactional
-  public ShipmentResponse updateStatus(
+  public ShipmentResponse updateShipmentStatus(
       UUID sellerId, UUID shipmentId, ShipmentStatusUpdateRequest request) {
     // Bước 1: seller đã duyệt; khoá shipment (404), của seller khác thì 403.
     userRepository.getApprovedSeller(sellerId);
@@ -167,14 +167,14 @@ public class ShipmentServiceImpl implements ShipmentService {
     // Bước 4: việc đi kèm theo trạng thái mới.
     switch (target) {
       // Mọi dòng chưa huỷ đã giao xong thì order DELIVERED và COD được ghi nhận đã thu.
-      case DELIVERED -> orderService.completeIfAllDelivered(order, now);
+      case DELIVERED -> orderService.markDeliveredIfAllShipped(order, now);
       // Hàng đã về kho seller: trả kho. Chỉ đi được từ FAILED nên chạy đúng một lần.
       case RETURNED -> items.forEach(this::restoreStock);
       case CANCELLED -> {
         // Chưa gửi đi: huỷ các dòng, trả kho, tính lại tổng và payment đang chờ (dùng lại từ Phase 6).
-        items.forEach(item -> orderService.cancelItem(item, SHIPMENT_CANCELLED_REASON));
+        items.forEach(item -> orderService.cancelOrderItem(item, SHIPMENT_CANCELLED_REASON));
         items.forEach(this::restoreStock);
-        orderService.recalculateAfterCancellation(order);
+        orderService.recalculateTotalsAfterCancel(order);
       }
       default -> {} // PREPARING, SHIPPED, FAILED: chỉ đổi trạng thái (FAILED không trả kho)
     }
@@ -254,7 +254,7 @@ public class ShipmentServiceImpl implements ShipmentService {
   }
 
   private void restoreStock(OrderItem item) {
-    productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
+    productService.increaseStock(item.getProduct().getId(), item.getQuantity());
   }
 
   private static BusinessException alreadyShipped() {

@@ -23,6 +23,6 @@ public class VoucherController {
 
   @GetMapping("/{code}/validate")
   public ResponseEntity<ApiResponse<VoucherResponse>> validate(@PathVariable String code) {
-    return ResponseEntity.ok(ApiResponse.ok(voucherService.validate(code)));
+    return ResponseEntity.ok(ApiResponse.ok(voucherService.checkVoucherUsable(code)));
   }
 }

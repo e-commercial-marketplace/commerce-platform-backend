@@ -11,17 +11,17 @@ import java.util.UUID;
 public interface AdminUserService {
 
   /** Danh sách user mới nhất trước; {@code role} và {@code search} (email hoặc tên) đều tuỳ chọn. */
-  PageResponse<UserResponse> list(Role role, String search, int page, int size);
+  PageResponse<UserResponse> listUsers(Role role, String search, int page, int size);
 
-  UserResponse get(UUID id);
+  UserResponse getUser(UUID id);
 
-  UserResponse create(AdminUserCreateRequest request);
+  UserResponse createUser(AdminUserCreateRequest request);
 
   /** Cập nhật một phần; admin không được tự vô hiệu hoá hoặc tự đổi role của mình. */
-  UserResponse update(UUID id, AdminUserUpdateRequest request, UUID actorId);
+  UserResponse updateUser(UUID id, AdminUserUpdateRequest request, UUID actorId);
 
   /** Vô hiệu hoá tài khoản (không xoá dòng) và thu hồi mọi refresh token của user. */
-  void disable(UUID id, UUID actorId);
+  void disableUser(UUID id, UUID actorId);
 
   /** Seller chưa duyệt, bị từ chối hoặc bị khoá sang {@code APPROVED}. */
   UserResponse approveSeller(UUID id);

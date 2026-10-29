@@ -39,7 +39,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   // Tạo refresh token mới cho người dùng. Trả token THÔ cho client, DB chỉ lưu bản băm.
   @Override
   @Transactional
-  public String issue(User user) {
+  public String createRefreshToken(User user) {
     // Bước 1: sinh 32 byte ngẫu nhiên.
     byte[] bytes = new byte[TOKEN_BYTES];
     RANDOM.nextBytes(bytes);
@@ -58,7 +58,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   // Dùng refresh token đúng MỘT lần: kiểm tra, thu hồi, rồi trả về chủ sở hữu để cấp token mới.
   @Override
   @Transactional
-  public User consume(String rawToken) {
+  public User useRefreshToken(String rawToken) {
     // Bước 1: băm token client gửi lên rồi tìm trong DB (DB chỉ có bản băm). Không thấy thì 401.
     String hash = sha256(rawToken);
     RefreshToken token =
@@ -82,7 +82,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   // Đăng xuất: thu hồi một refresh token, nhưng chỉ khi nó thuộc về người đang gọi.
   @Override
   @Transactional
-  public void revoke(String rawToken, UUID currentUserId) {
+  public void revokeRefreshToken(String rawToken, UUID currentUserId) {
     // Bước 1: băm rồi tìm token trong DB; không thấy thì 401.
     String hash = sha256(rawToken);
     RefreshToken token =
@@ -98,7 +98,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
   // Thu hồi mọi refresh token còn hiệu lực của một user (admin vô hiệu hoá tài khoản).
   @Override
   @Transactional
-  public void revokeAll(UUID userId) {
+  public void revokeAllRefreshTokens(UUID userId) {
     refreshTokenRepository.revokeAllActive(userId, timeProvider.now());
   }
 

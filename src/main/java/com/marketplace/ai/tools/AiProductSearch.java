@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Tìm product cho trợ lý AI, dùng chung cho tool của LLM và bộ trả lời bằng luật. Tham số đến từ model
- * hoặc từ câu người dùng nên không tin được: chuẩn hoá trước khi gọi {@link ProductService#search}
+ * hoặc từ câu người dùng nên không tin được: chuẩn hoá trước khi gọi {@link ProductService#searchListedProducts}
  * (đúng FR-AI-05, không gọi thẳng repository), và chỉ lấy tối đa {@link #LIMIT} product đang bán.
  */
 @Component
@@ -44,7 +44,7 @@ public class AiProductSearch {
    */
   public List<String> categoryNames() {
     var listed = productService.categoryIdsWithListedProducts();
-    return categoryService.listAll().stream()
+    return categoryService.listCategories().stream()
         .filter(c -> listed.contains(c.id()))
         .map(CategorySummaryResponse::name)
         .toList();
@@ -59,7 +59,7 @@ public class AiProductSearch {
       return Optional.empty();
     }
     String wanted = name.trim().toLowerCase(Locale.ROOT);
-    List<CategorySummaryResponse> all = categoryService.listAll();
+    List<CategorySummaryResponse> all = categoryService.listCategories();
     return all.stream()
         .filter(c -> c.name().toLowerCase(Locale.ROOT).equals(wanted))
         .findFirst()
@@ -90,7 +90,7 @@ public class AiProductSearch {
     // Bước 2: tìm trang đầu, tối đa LIMIT product đang bán.
     List<AiProductResponse> products =
         productService
-            .search(
+            .searchListedProducts(
                 new ProductSearchRequest(
                     q, category == null ? null : category.id(), null, min, max, rating, order, 0, LIMIT))
             .content()
