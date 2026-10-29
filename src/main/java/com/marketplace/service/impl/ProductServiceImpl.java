@@ -11,6 +11,7 @@ import static com.marketplace.repository.ProductSpecifications.textMatches;
 
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.response.PageResponse;
+import com.marketplace.config.CacheConfig;
 import com.marketplace.dto.request.ProductSearchRequest;
 import com.marketplace.dto.response.ProductResponse;
 import com.marketplace.dto.response.ProductSummaryResponse;
@@ -22,6 +23,8 @@ import com.marketplace.service.ProductService;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -38,6 +41,8 @@ public class ProductServiceImpl implements ProductService {
 
   @Override
   @Transactional(readOnly = true)
+  // Một trang kết quả sống 60 giây; key là toàn bộ tham số (record nên toString liệt kê đủ các field).
+  @Cacheable(cacheNames = CacheConfig.PRODUCT_SEARCH, key = "#request.toString()")
   public PageResponse<ProductSummaryResponse> search(ProductSearchRequest request) {
     if (request.minPrice() != null
         && request.maxPrice() != null
@@ -83,6 +88,8 @@ public class ProductServiceImpl implements ProductService {
 
   @Override
   @Transactional(readOnly = true)
+  // 404 là exception nên không được cache: product được bán lại thì hiện ra ngay.
+  @Cacheable(cacheNames = CacheConfig.PRODUCTS, key = "#id")
   public ProductResponse getActiveProduct(UUID id) {
     return productRepository
         .findByIdAndActiveTrue(id)
@@ -111,5 +118,29 @@ public class ProductServiceImpl implements ProductService {
   @Transactional(readOnly = true)
   public Set<UUID> categoryIdsWithListedProducts() {
     return productRepository.findCategoryIdsWithActiveProducts();
+  }
+
+  // Ba hàm dưới chạy trong transaction của người gọi (checkout, huỷ dòng...). Cache chi tiết bị xoá sau khi
+  // transaction đó commit (CacheManager transactionAware); rollback thì không xoá.
+
+  @Override
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+  public boolean decreaseStock(UUID productId, int quantity) {
+    return productRepository.decreaseStock(productId, quantity) == 1;
+  }
+
+  @Override
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+  public void increaseStock(UUID productId, int quantity) {
+    productRepository.increaseStock(productId, quantity);
+  }
+
+  @Override
+  @Transactional
+  @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+  public void addRating(UUID productId, int rating) {
+    productRepository.addRating(productId, rating);
   }
 }

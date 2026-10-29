@@ -10,11 +10,11 @@ import com.marketplace.enums.OrderStatus;
 import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
 import com.marketplace.service.PaymentService;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.SellerOrderService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
   private final OrderItemRepository orderItemRepository;
   private final OrderRepository orderRepository;
   private final ShipmentOrderItemRepository shipmentOrderItemRepository;
-  private final ProductRepository productRepository;
+  private final ProductService productService;
   private final UserRepository userRepository;
   private final OrderService orderService;
   private final PaymentService paymentService;
@@ -96,7 +96,7 @@ public class SellerOrderServiceImpl implements SellerOrderService {
     }
     // Bước 4: huỷ dòng (dòng đã huỷ thì 400, nên bước trả kho dưới đây chỉ chạy đúng một lần).
     orderService.cancelItem(item, reason);
-    productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
+    productService.increaseStock(item.getProduct().getId(), item.getQuantity());
     // Bước 5: tính lại tổng và đồng bộ payment đang chờ (COD nhận tổng mới, VNPAY thành FAILED); không
     // còn dòng nào thì order CANCELLED và mọi payment đang chờ FAILED.
     orderService.recalculateAfterCancellation(order);

@@ -14,6 +14,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,8 +55,12 @@ public class CategoryServiceImpl implements CategoryService {
 
   @Override
   @Transactional
-  // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
-  @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
+  // Danh sách category đổi; chi tiết product có tên category nên xoá cả cache chi tiết (đổi tên rất hiếm).
+  @Caching(
+      evict = {
+        @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'"),
+        @CacheEvict(cacheNames = CacheConfig.PRODUCTS, allEntries = true)
+      })
   public CategorySummaryResponse rename(UUID id, CategoryRequest request) {
     // Bước 1: category phải tồn tại, nếu không 404.
     Category category = findCategory(id);

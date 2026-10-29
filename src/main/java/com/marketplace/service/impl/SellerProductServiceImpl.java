@@ -23,6 +23,7 @@ import com.marketplace.service.SellerProductService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -104,8 +105,12 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
-  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
-  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
+  // Số product đang bán của shop và chi tiết product có thể đổi: xoá cả hai cache sau khi commit.
+  @Caching(
+      evict = {
+        @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId"),
+        @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+      })
   public ProductResponse update(UUID sellerId, UUID productId, ProductUpdateRequest request) {
     // Bước 1: seller đã duyệt chưa? Bước 2: product có tồn tại và có phải của seller này không?
     userRepository.getApprovedSeller(sellerId);
@@ -137,8 +142,12 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
-  // Số product đang bán của shop có thể đổi: xoá cache trang shop sau khi commit.
-  @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId")
+  // Product bị ẩn: trang shop bớt một product, chi tiết phải thành 404 ngay.
+  @Caching(
+      evict = {
+        @CacheEvict(cacheNames = CacheConfig.SELLER_SHOPS, key = "#sellerId"),
+        @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId")
+      })
   public void delete(UUID sellerId, UUID productId) {
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);
@@ -148,6 +157,7 @@ public class SellerProductServiceImpl implements SellerProductService {
 
   @Override
   @Transactional
+  @CacheEvict(cacheNames = CacheConfig.PRODUCTS, key = "#productId") // tồn kho trong chi tiết đổi
   public ProductResponse updateStock(UUID sellerId, UUID productId, StockUpdateRequest request) {
     userRepository.getApprovedSeller(sellerId);
     Product product = findOwnedProduct(sellerId, productId);

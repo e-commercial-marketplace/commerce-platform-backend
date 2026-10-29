@@ -13,6 +13,7 @@ import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ReviewRepository;
 import com.marketplace.repository.UserRepository;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.ReviewService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   private final ReviewRepository reviewRepository;
   private final ProductRepository productRepository;
+  private final ProductService productService;
   private final OrderItemRepository orderItemRepository;
   private final UserRepository userRepository;
   private final ReviewMapper reviewMapper;
@@ -60,7 +62,7 @@ public class ReviewServiceImpl implements ReviewService {
       throw alreadyReviewed();
     }
     // Bước 3: cộng vào điểm trung bình và số lượt đánh giá của product (một câu UPDATE).
-    productRepository.addRating(productId, request.rating());
+    productService.addRating(productId, request.rating());
     return reviewMapper.toResponse(review);
   }
 

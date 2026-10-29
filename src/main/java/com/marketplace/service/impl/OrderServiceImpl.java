@@ -23,7 +23,6 @@ import com.marketplace.mapper.OrderMapper;
 import com.marketplace.repository.CartCache;
 import com.marketplace.repository.CartItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
 import com.marketplace.service.PaymentService;
@@ -66,7 +65,6 @@ public class OrderServiceImpl implements OrderService {
   private final UserRepository userRepository;
   private final CartItemRepository cartItemRepository;
   private final CartCache cartCache;
-  private final ProductRepository productRepository;
   private final OrderRepository orderRepository;
   private final PaymentService paymentService;
   private final ProductService productService;
@@ -99,7 +97,7 @@ public class OrderServiceImpl implements OrderService {
     for (CartItem line : lines.stream().sorted(Comparator.comparing(l -> l.getProduct().getId())).toList()) {
       Product product = line.getProduct();
       productService.ensureActive(product);
-      if (productRepository.decreaseStock(product.getId(), line.getQuantity()) != 1) {
+      if (!productService.decreaseStock(product.getId(), line.getQuantity())) {
         throw BusinessException.insufficientStock("Not enough stock for " + product.getName());
       }
     }
@@ -242,7 +240,7 @@ public class OrderServiceImpl implements OrderService {
     remaining.forEach(item -> cancelItem(item, EXPIRED_REASON));
     remaining.stream()
         .sorted(Comparator.comparing(item -> item.getProduct().getId()))
-        .forEach(item -> productRepository.increaseStock(item.getProduct().getId(), item.getQuantity()));
+        .forEach(item -> productService.increaseStock(item.getProduct().getId(), item.getQuantity()));
     // Không còn dòng nào: order CANCELLED, tổng 0.00, payment đang chờ FAILED.
     recalculateAfterCancellation(order);
     return true;

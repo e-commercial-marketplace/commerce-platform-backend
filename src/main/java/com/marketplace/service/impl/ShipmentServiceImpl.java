@@ -20,11 +20,11 @@ import com.marketplace.mapper.ShipmentMapper;
 import com.marketplace.repository.CarrierRepository;
 import com.marketplace.repository.OrderItemRepository;
 import com.marketplace.repository.OrderRepository;
-import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.ShipmentOrderItemRepository;
 import com.marketplace.repository.ShipmentRepository;
 import com.marketplace.repository.UserRepository;
 import com.marketplace.service.OrderService;
+import com.marketplace.service.ProductService;
 import com.marketplace.service.ShipmentService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -69,7 +69,7 @@ public class ShipmentServiceImpl implements ShipmentService {
   private final OrderItemRepository orderItemRepository;
   private final OrderRepository orderRepository;
   private final CarrierRepository carrierRepository;
-  private final ProductRepository productRepository;
+  private final ProductService productService;
   private final UserRepository userRepository;
   private final OrderService orderService;
   private final ShipmentMapper shipmentMapper;
@@ -254,7 +254,7 @@ public class ShipmentServiceImpl implements ShipmentService {
   }
 
   private void restoreStock(OrderItem item) {
-    productRepository.increaseStock(item.getProduct().getId(), item.getQuantity());
+    productService.increaseStock(item.getProduct().getId(), item.getQuantity());
   }
 
   private static BusinessException alreadyShipped() {

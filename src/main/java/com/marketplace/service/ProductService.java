@@ -30,4 +30,18 @@ public interface ProductService {
 
   /** Id các category đang có product đang bán (để trợ lý AI không giới thiệu category rỗng). */
   Set<UUID> categoryIdsWithListedProducts();
+
+  /**
+   * Trừ kho có điều kiện (product đang bán và đủ hàng) bằng một câu UPDATE, chạy trong transaction của
+   * người gọi. Mọi thay đổi kho và rating đều đi qua service này để cache chi tiết product luôn bị xoá.
+   *
+   * @return {@code false} nếu không trừ được (hết hàng hoặc product đã ẩn)
+   */
+  boolean decreaseStock(UUID productId, int quantity);
+
+  /** Cộng lại kho (huỷ dòng, shipment trả về, đơn quá hạn). */
+  void increaseStock(UUID productId, int quantity);
+
+  /** Cộng một đánh giá vào điểm trung bình và số lượt đánh giá. */
+  void addRating(UUID productId, int rating);
 }
