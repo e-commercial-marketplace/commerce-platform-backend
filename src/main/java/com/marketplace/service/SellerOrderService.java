@@ -9,12 +9,12 @@ import java.util.UUID;
 public interface SellerOrderService {
 
   /** Các dòng hàng của seller, order mới nhất trước; {@code status}, {@code orderId} có thể null. */
-  PageResponse<OrderItemResponse> list(
+  PageResponse<OrderItemResponse> listMyOrderItems(
       UUID sellerId, OrderItemStatus status, UUID orderId, int page, int size);
 
   /** PENDING sang CONFIRMED. */
-  OrderItemResponse confirm(UUID sellerId, UUID orderItemId);
+  OrderItemResponse confirmOrderItem(UUID sellerId, UUID orderItemId);
 
   /** Huỷ dòng hàng: trả kho, tính lại order và payment đang chờ; hết dòng thì huỷ cả order. */
-  OrderItemResponse cancel(UUID sellerId, UUID orderItemId, String reason);
+  OrderItemResponse cancelOrderItem(UUID sellerId, UUID orderItemId, String reason);
 }

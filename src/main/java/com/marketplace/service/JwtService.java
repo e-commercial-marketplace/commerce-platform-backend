@@ -13,5 +13,5 @@ public interface JwtService {
   Optional<AuthUser> parseAccessToken(String token);
 
   /** Giá trị {@code expiresIn} trả cho client, đơn vị giây. */
-  long accessExpiresInSeconds();
+  long accessTokenLifetimeSeconds();
 }

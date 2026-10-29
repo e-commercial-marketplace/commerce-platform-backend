@@ -43,7 +43,7 @@ public class ProductServiceImpl implements ProductService {
   @Transactional(readOnly = true)
   // Một trang kết quả sống 60 giây; key là toàn bộ tham số (record nên toString liệt kê đủ các field).
   @Cacheable(cacheNames = CacheConfig.PRODUCT_SEARCH, key = "#request.toString()")
-  public PageResponse<ProductSummaryResponse> search(ProductSearchRequest request) {
+  public PageResponse<ProductSummaryResponse> searchListedProducts(ProductSearchRequest request) {
     if (request.minPrice() != null
         && request.maxPrice() != null
         && request.minPrice().compareTo(request.maxPrice()) > 0) {
@@ -90,7 +90,7 @@ public class ProductServiceImpl implements ProductService {
   @Transactional(readOnly = true)
   // 404 là exception nên không được cache: product được bán lại thì hiện ra ngay.
   @Cacheable(cacheNames = CacheConfig.PRODUCTS, key = "#id")
-  public ProductResponse getActiveProduct(UUID id) {
+  public ProductResponse getListedProduct(UUID id) {
     return productRepository
         .findByIdAndActiveTrue(id)
         .map(productMapper::toResponse)
@@ -108,7 +108,7 @@ public class ProductServiceImpl implements ProductService {
   }
 
   @Override
-  public void ensureActive(Product product) {
+  public void requireListed(Product product) {
     if (!product.isActive()) {
       throw BusinessException.productInactive("Product is no longer available: " + product.getName());
     }

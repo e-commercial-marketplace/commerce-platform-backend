@@ -53,7 +53,7 @@ public class PaymentController {
       @Valid @RequestBody VnpayCreateRequest request,
       HttpServletRequest http) {
     return ResponseEntity.ok(
-        ApiResponse.ok(paymentService.retryVnpay(me.id(), request.orderId(), ClientIp.of(http))));
+        ApiResponse.ok(paymentService.retryVnpayPayment(me.id(), request.orderId(), ClientIp.of(http))));
   }
 
   /**
@@ -63,7 +63,7 @@ public class PaymentController {
   @GetMapping("/ipn")
   public ResponseEntity<VnpayIpnResponse> ipn(@RequestParam Map<String, String> params) {
     try {
-      return ResponseEntity.ok(paymentService.handleVnpayResult(params).response());
+      return ResponseEntity.ok(paymentService.handleVnpayCallback(params).response());
     } catch (RuntimeException e) {
       log.error("VNPAY IPN failed", e);
       return ResponseEntity.ok(VnpayIpnResponse.UNKNOWN_ERROR);
@@ -79,7 +79,7 @@ public class PaymentController {
   public ResponseEntity<Void> returnFromVnpay(@RequestParam Map<String, String> params) {
     UriComponentsBuilder target = UriComponentsBuilder.fromUriString(vnpayProperties.appRedirectUrl());
     try {
-      VnpayResult result = paymentService.handleVnpayResult(params);
+      VnpayResult result = paymentService.handleVnpayCallback(params);
       if (result.orderId() != null) {
         target.queryParam("orderId", result.orderId());
       }

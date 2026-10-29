@@ -50,14 +50,14 @@ public class SellerProductController {
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
       @AuthenticationPrincipal AuthUser me) {
     return ResponseEntity.ok(
-        ApiResponse.ok(sellerProductService.list(me.id(), q, active, page, size)));
+        ApiResponse.ok(sellerProductService.listMyProducts(me.id(), q, active, page, size)));
   }
 
   // Chi tiết một product của chính seller: 404 nếu không có, 403 nếu của seller khác.
   @GetMapping("/{id}")
   public ResponseEntity<ApiResponse<ProductResponse>> get(
       @PathVariable UUID id, @AuthenticationPrincipal AuthUser me) {
-    return ResponseEntity.ok(ApiResponse.ok(sellerProductService.get(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(sellerProductService.getMyProduct(me.id(), id)));
   }
 
   // @AuthenticationPrincipal AuthUser me: người đang đăng nhập, lấy từ token. Luôn dùng me.id() làm
@@ -66,7 +66,7 @@ public class SellerProductController {
   public ResponseEntity<ApiResponse<ProductResponse>> create(
       @Valid @RequestBody ProductCreateRequest request, @AuthenticationPrincipal AuthUser me) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.ok(sellerProductService.create(me.id(), request)));
+        .body(ApiResponse.ok(sellerProductService.createProduct(me.id(), request)));
   }
 
   @PatchMapping("/{id}")
@@ -74,13 +74,13 @@ public class SellerProductController {
       @PathVariable UUID id,
       @Valid @RequestBody ProductUpdateRequest request,
       @AuthenticationPrincipal AuthUser me) {
-    return ResponseEntity.ok(ApiResponse.ok(sellerProductService.update(me.id(), id, request)));
+    return ResponseEntity.ok(ApiResponse.ok(sellerProductService.updateProduct(me.id(), id, request)));
   }
 
   // 204 No Content: thành công và không có body.
   @DeleteMapping("/{id}")
   public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal AuthUser me) {
-    sellerProductService.delete(me.id(), id);
+    sellerProductService.hideProduct(me.id(), id);
     return ResponseEntity.noContent().build();
   }
 

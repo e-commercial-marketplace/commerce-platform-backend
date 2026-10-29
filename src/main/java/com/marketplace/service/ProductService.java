@@ -17,16 +17,16 @@ public interface ProductService {
    *
    * @throws com.marketplace.common.exception.BusinessException 400 nếu khoảng giá hoặc {@code sort} sai
    */
-  PageResponse<ProductSummaryResponse> search(ProductSearchRequest request);
+  PageResponse<ProductSummaryResponse> searchListedProducts(ProductSearchRequest request);
 
   /**
    * @throws com.marketplace.common.exception.BusinessException nếu không có product đang bán với
    *     {@code id}
    */
-  ProductResponse getActiveProduct(UUID id);
+  ProductResponse getListedProduct(UUID id);
 
   /** Product đã ngừng bán thì 409 PRODUCT_INACTIVE; dùng khi thêm vào giỏ và khi checkout. */
-  void ensureActive(Product product);
+  void requireListed(Product product);
 
   /** Id các category đang có product đang bán (để trợ lý AI không giới thiệu category rỗng). */
   Set<UUID> categoryIdsWithListedProducts();

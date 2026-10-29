@@ -59,7 +59,7 @@ public class AuthController {
   @PostMapping("/password/forgot")
   public ResponseEntity<ApiResponse<Void>> forgotPassword(
       @Valid @RequestBody ForgotPasswordRequest request) {
-    passwordResetService.requestReset(request);
+    passwordResetService.sendResetCode(request);
     return ResponseEntity.ok(ApiResponse.ok(null));
   }
 

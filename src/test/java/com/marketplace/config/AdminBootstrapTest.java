@@ -36,7 +36,7 @@ class AdminBootstrapTest {
 
   /** Dựng AdminBootstrap rồi gán email/mật khẩu như thể chúng đến từ biến môi trường. */
   private AdminBootstrap bootstrap(String email, String password) {
-    // UserService thật: newUser chỉ dựng đối tượng User, không đọc ghi DB và không cần mapper.
+    // UserService thật: buildNewUser chỉ dựng đối tượng User, không đọc ghi DB và không cần mapper.
     AdminBootstrap bootstrap = new AdminBootstrap(users, encoder, new UserServiceImpl(users, null));
     // email và password là field @Value (không có setter), nên gán bằng reflection trong test.
     ReflectionTestUtils.setField(bootstrap, "email", email);

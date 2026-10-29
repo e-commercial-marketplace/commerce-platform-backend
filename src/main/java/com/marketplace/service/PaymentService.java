@@ -19,34 +19,34 @@ public interface PaymentService {
    * Tạo lần thử VNPAY mới cho order (đã được khoá ở transaction của người gọi) và trả link thanh toán.
    * Checkout gọi hàm này cho lần đầu; retry cũng đi qua đây.
    */
-  String openVnpayAttempt(Order order, String clientIp);
+  String createVnpayPayment(Order order, String clientIp);
 
   /** Customer thanh toán lại order VNPAY của mình: huỷ lần thử còn chờ, tạo lần thử và link mới. */
-  VnpayPaymentResponse retryVnpay(UUID customerId, UUID orderId, String clientIp);
+  VnpayPaymentResponse retryVnpayPayment(UUID customerId, UUID orderId, String clientIp);
 
   /** Xử lý kết quả VNPAY gửi về; IPN và Return URL dùng chung hàm này, gọi lặp không đổi gì thêm. */
-  VnpayResult handleVnpayResult(Map<String, String> params);
+  VnpayResult handleVnpayCallback(Map<String, String> params);
 
   /** Tạo payment COD chờ thu tiền khi giao, số tiền bằng tổng hiện tại của order. */
-  void openCod(Order order);
+  void createCodPayment(Order order);
 
   /** Order trả trước qua VNPAY (có hạn 24 giờ); order COD thì thu tiền khi giao, không có hạn. */
-  boolean isPrepayment(Order order);
+  boolean isPaidByVnpay(Order order);
 
   /** Order đã có một lần thanh toán COMPLETED. */
   boolean hasCompletedPayment(Order order);
 
   /** Đã quá hạn thanh toán trước 24 giờ tính từ lúc đặt. */
-  boolean isPastDeadline(Order order, Instant now);
+  boolean isPaymentDeadlinePassed(Order order, Instant now);
 
   /**
    * Gọi sau khi tổng order đổi vì huỷ dòng. Payment đang chờ: COD nhận tổng mới (thu lúc giao); VNPAY
    * thành FAILED vì link đã gửi mang số tiền cũ. Order đã CANCELLED thì mọi payment đang chờ đều FAILED.
    */
-  void syncPendingPayments(Order order);
+  void updatePendingPaymentsAfterCancel(Order order);
 
   /** Order đã giao đủ: payment COD đang chờ được ghi nhận đã thu. VNPAY đã COMPLETED từ lúc trả tiền. */
-  void completeCod(Order order, Instant now);
+  void markCodCollected(Order order, Instant now);
 
   /**
    * Kết quả xử lý một lần VNPAY gửi về.

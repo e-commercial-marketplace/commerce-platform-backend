@@ -39,23 +39,23 @@ public class AdminVoucherController {
   public ResponseEntity<ApiResponse<PageResponse<VoucherResponse>>> list(
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return ResponseEntity.ok(ApiResponse.ok(voucherService.list(page, size)));
+    return ResponseEntity.ok(ApiResponse.ok(voucherService.listVouchers(page, size)));
   }
 
   @PostMapping
   public ResponseEntity<ApiResponse<VoucherResponse>> create(
       @Valid @RequestBody VoucherCreateRequest request) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(voucherService.create(request)));
+    return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(voucherService.createVoucher(request)));
   }
 
   @PatchMapping("/{code}")
   public ResponseEntity<ApiResponse<VoucherResponse>> update(
       @PathVariable String code, @Valid @RequestBody VoucherUpdateRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(voucherService.update(code, request)));
+    return ResponseEntity.ok(ApiResponse.ok(voucherService.updateVoucher(code, request)));
   }
 
   @DeleteMapping("/{code}")
   public ResponseEntity<ApiResponse<VoucherResponse>> expire(@PathVariable String code) {
-    return ResponseEntity.ok(ApiResponse.ok(voucherService.expire(code)));
+    return ResponseEntity.ok(ApiResponse.ok(voucherService.expireVoucher(code)));
   }
 }

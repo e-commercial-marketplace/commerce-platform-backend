@@ -25,20 +25,20 @@ public interface SellerProductService {
    * @param q từ khoá tìm trong tên và mô tả (tuỳ chọn)
    * @param active {@code true} chỉ lấy đang bán, {@code false} chỉ lấy đã ẩn, {@code null} lấy cả hai
    */
-  PageResponse<ProductSummaryResponse> list(
+  PageResponse<ProductSummaryResponse> listMyProducts(
       UUID sellerId, String q, Boolean active, int page, int size);
 
   /** Chi tiết một product của chính seller (kể cả đã ẩn). */
-  ProductResponse get(UUID sellerId, UUID productId);
+  ProductResponse getMyProduct(UUID sellerId, UUID productId);
 
   /** Tạo product mới cho seller. Lỗi 400 nếu {@code categoryId} không tồn tại. */
-  ProductResponse create(UUID sellerId, ProductCreateRequest request);
+  ProductResponse createProduct(UUID sellerId, ProductCreateRequest request);
 
   /** Sửa một phần product; trường {@code null} trong request thì giữ nguyên. */
-  ProductResponse update(UUID sellerId, UUID productId, ProductUpdateRequest request);
+  ProductResponse updateProduct(UUID sellerId, UUID productId, ProductUpdateRequest request);
 
   /** Xoá mềm: đặt {@code active = false}, giữ lại dữ liệu để đơn hàng và review cũ vẫn tham chiếu được. */
-  void delete(UUID sellerId, UUID productId);
+  void hideProduct(UUID sellerId, UUID productId);
 
   /** Đặt lại số lượng tồn kho. */
   ProductResponse updateStock(UUID sellerId, UUID productId, StockUpdateRequest request);

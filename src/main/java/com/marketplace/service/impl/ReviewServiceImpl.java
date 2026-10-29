@@ -36,7 +36,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Override
   @Transactional
-  public ReviewResponse create(UUID customerId, UUID productId, ReviewCreateRequest request) {
+  public ReviewResponse createReview(UUID customerId, UUID productId, ReviewCreateRequest request) {
     // Bước 1: product phải đang bán (không có hoặc đã ẩn thì 404).
     Product product = findVisibleProduct(productId);
     // Bước 2: phải có order COMPLETED chứa dòng chưa huỷ của product này (403), và chưa đánh giá lần nào (409).
@@ -68,7 +68,7 @@ public class ReviewServiceImpl implements ReviewService {
 
   @Override
   @Transactional(readOnly = true)
-  public PageResponse<ReviewResponse> list(UUID productId, int page, int size) {
+  public PageResponse<ReviewResponse> listProductReviews(UUID productId, int page, int size) {
     findVisibleProduct(productId);
     return PageResponse.from(
         reviewRepository.findByProductId(productId, Pages.newestFirst(page, size)),

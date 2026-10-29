@@ -30,7 +30,7 @@ public class CategoryServiceImpl implements CategoryService {
   @Override
   @Transactional(readOnly = true) // chỉ đọc nên khai báo readOnly để nhẹ hơn
   @Cacheable(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
-  public List<CategorySummaryResponse> listAll() {
+  public List<CategorySummaryResponse> listCategories() {
     return categoryMapper.toSummaries(categoryRepository.findAllByOrderByNameAsc());
   }
 
@@ -38,7 +38,7 @@ public class CategoryServiceImpl implements CategoryService {
   @Transactional
   // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
   @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
-  public CategorySummaryResponse create(CategoryRequest request) {
+  public CategorySummaryResponse createCategory(CategoryRequest request) {
     // Bước 1: bỏ khoảng trắng hai đầu, vì "Electronics " và "Electronics" là cùng một tên.
     String name = request.name().trim();
     // Bước 2: tên đã có (không phân biệt hoa thường) thì từ chối.
@@ -61,7 +61,7 @@ public class CategoryServiceImpl implements CategoryService {
         @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'"),
         @CacheEvict(cacheNames = CacheConfig.PRODUCTS, allEntries = true)
       })
-  public CategorySummaryResponse rename(UUID id, CategoryRequest request) {
+  public CategorySummaryResponse renameCategory(UUID id, CategoryRequest request) {
     // Bước 1: category phải tồn tại, nếu không 404.
     Category category = findCategory(id);
     String name = request.name().trim();
@@ -82,7 +82,7 @@ public class CategoryServiceImpl implements CategoryService {
   @Transactional
   // Danh sách category đổi: xoá cache sau khi commit, lần đọc sau lấy lại từ PostgreSQL.
   @CacheEvict(cacheNames = CacheConfig.CATEGORIES, key = "'all'")
-  public void delete(UUID id) {
+  public void deleteCategory(UUID id) {
     Category category = findCategory(id);
     // Category còn product (kể cả product đã ẩn) thì không được xoá, vì product còn tham chiếu tới nó.
     if (productRepository.existsByCategoryId(id)) {

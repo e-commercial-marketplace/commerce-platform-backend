@@ -82,7 +82,7 @@ public class JwtServiceImpl implements JwtService {
 
   // Số giây access token sống, trả cho client trong trường expiresIn (ví dụ 900 giây).
   @Override
-  public long accessExpiresInSeconds() {
+  public long accessTokenLifetimeSeconds() {
     return props.accessExpirationMs() / 1000; // đổi mili giây sang giây
   }
 }

@@ -44,14 +44,14 @@ public class SellerShipmentController {
 
   @GetMapping("/carriers")
   public ResponseEntity<ApiResponse<List<CarrierResponse>>> carriers(@AuthenticationPrincipal AuthUser me) {
-    return ResponseEntity.ok(ApiResponse.ok(carrierService.listActive(me.id())));
+    return ResponseEntity.ok(ApiResponse.ok(carrierService.listActiveCarriers(me.id())));
   }
 
   @PostMapping("/shipments")
   public ResponseEntity<ApiResponse<ShipmentResponse>> create(
       @AuthenticationPrincipal AuthUser me, @Valid @RequestBody ShipmentCreateRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.ok(shipmentService.create(me.id(), request)));
+        .body(ApiResponse.ok(shipmentService.createShipment(me.id(), request)));
   }
 
   @GetMapping("/shipments")
@@ -61,7 +61,7 @@ public class SellerShipmentController {
       @RequestParam(required = false) UUID orderId,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return ResponseEntity.ok(ApiResponse.ok(shipmentService.list(me.id(), status, orderId, page, size)));
+    return ResponseEntity.ok(ApiResponse.ok(shipmentService.listMyShipments(me.id(), status, orderId, page, size)));
   }
 
   @PatchMapping("/shipments/{id}/status")
@@ -69,6 +69,6 @@ public class SellerShipmentController {
       @AuthenticationPrincipal AuthUser me,
       @PathVariable UUID id,
       @Valid @RequestBody ShipmentStatusUpdateRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(shipmentService.updateStatus(me.id(), id, request)));
+    return ResponseEntity.ok(ApiResponse.ok(shipmentService.updateShipmentStatus(me.id(), id, request)));
   }
 }

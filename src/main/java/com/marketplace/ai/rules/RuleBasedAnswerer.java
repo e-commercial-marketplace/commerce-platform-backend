@@ -309,7 +309,7 @@ public class RuleBasedAnswerer {
   private String parseCategory(String rest, Filters f) {
     record Alias(String text, CategorySummaryResponse category) {}
     List<Alias> aliases = new ArrayList<>();
-    for (CategorySummaryResponse category : categoryService.listAll()) {
+    for (CategorySummaryResponse category : categoryService.listCategories()) {
       String name = category.name().toLowerCase(Locale.ROOT);
       aliases.add(new Alias(name, category));
       for (String part : name.split("[&,]")) {

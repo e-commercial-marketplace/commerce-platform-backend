@@ -40,7 +40,7 @@ public class AdminBootstrap implements ApplicationRunner {
     }
     String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
     userRepository.save(
-        userService.newUser(
+        userService.buildNewUser(
             normalizedEmail, passwordEncoder.encode(password), "Administrator", Role.ADMIN));
     log.info("Bootstrapped initial admin account {}", normalizedEmail);
   }

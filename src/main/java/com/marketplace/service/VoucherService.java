@@ -10,21 +10,21 @@ import java.time.Instant;
 /** Voucher của nền tảng theo features/voucher/API_CONTRACT.md. Mã không phân biệt hoa thường. */
 public interface VoucherService {
 
-  PageResponse<VoucherResponse> list(int page, int size);
+  PageResponse<VoucherResponse> listVouchers(int page, int size);
 
-  VoucherResponse create(VoucherCreateRequest request);
+  VoucherResponse createVoucher(VoucherCreateRequest request);
 
-  VoucherResponse update(String code, VoucherUpdateRequest request);
+  VoucherResponse updateVoucher(String code, VoucherUpdateRequest request);
 
   /** Hết hạn ngay, không xoá (giữ lịch sử). */
-  VoucherResponse expire(String code);
+  VoucherResponse expireVoucher(String code);
 
   /** Khách kiểm tra mã: dùng được thì trả voucher, không thì 404 hoặc 409 (không trừ lượt). */
-  VoucherResponse validate(String code);
+  VoucherResponse checkVoucherUsable(String code);
 
   /**
    * Trừ một lượt dùng cho checkout (chạy trong transaction của checkout) và trả voucher; không có thì 404,
    * hết hạn hoặc hết lượt thì 409.
    */
-  Voucher consume(String code, Instant now);
+  Voucher useVoucher(String code, Instant now);
 }

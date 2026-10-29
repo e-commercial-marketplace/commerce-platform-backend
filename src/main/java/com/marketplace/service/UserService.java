@@ -19,7 +19,7 @@ public interface UserService {
    * User mới (chưa lưu), đang hoạt động. SELLER bắt đầu ở trạng thái PENDING chờ admin duyệt; role khác
    * không có trạng thái seller. {@code passwordHash} phải là mật khẩu đã băm.
    */
-  User newUser(String email, String passwordHash, String fullName, Role role);
+  User buildNewUser(String email, String passwordHash, String fullName, Role role);
 
   /**
    * Sửa liên hệ theo một quy tắc chung cho user và admin: {@code null} giữ nguyên, số điện thoại được chuẩn

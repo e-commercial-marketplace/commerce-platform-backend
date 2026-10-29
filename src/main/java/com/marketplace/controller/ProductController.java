@@ -44,11 +44,11 @@ public class ProductController {
     ProductSearchRequest request =
         new ProductSearchRequest(
             q, categoryId, sellerId, minPrice, maxPrice, minRating, sort, page, size);
-    return ResponseEntity.ok(ApiResponse.ok(productService.search(request)));
+    return ResponseEntity.ok(ApiResponse.ok(productService.searchListedProducts(request)));
   }
 
   @GetMapping("/{id}")
   public ResponseEntity<ApiResponse<ProductResponse>> getById(@PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(productService.getActiveProduct(id)));
+    return ResponseEntity.ok(ApiResponse.ok(productService.getListedProduct(id)));
   }
 }

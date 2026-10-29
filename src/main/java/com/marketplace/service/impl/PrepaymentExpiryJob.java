@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 /**
  * Job chạy nền mỗi 5 phút: huỷ order VNPAY quá 24 giờ chưa thanh toán và trả tồn kho (FR-ORD-10).
  *
- * <p>Mỗi order được huỷ trong transaction riêng ({@link OrderService#cancelExpiredOrder}), nên một order
+ * <p>Mỗi order được huỷ trong transaction riêng ({@link OrderService#cancelUnpaidVnpayOrder}), nên một order
  * lỗi không làm hỏng các order khác. Render free ngủ khi không có request; lúc thức dậy, lần chạy đầu
  * tiên sẽ huỷ bù mọi order đã quá hạn trong lúc ngủ.
  */
@@ -35,7 +35,7 @@ public class PrepaymentExpiryJob {
     for (UUID orderId :
         orderRepository.findExpiredPrepaymentOrderIds(now.minus(PaymentService.PREPAYMENT_DEADLINE))) {
       try {
-        if (orderService.cancelExpiredOrder(orderId, now)) {
+        if (orderService.cancelUnpaidVnpayOrder(orderId, now)) {
           log.info("Cancelled order {}: prepayment deadline expired", orderId);
         }
       } catch (RuntimeException e) {

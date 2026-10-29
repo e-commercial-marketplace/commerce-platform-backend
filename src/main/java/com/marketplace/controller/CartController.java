@@ -40,7 +40,7 @@ public class CartController {
   @PostMapping("/items")
   public ResponseEntity<ApiResponse<CartResponse>> addItem(
       @AuthenticationPrincipal AuthUser me, @Valid @RequestBody CartItemAddRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(cartService.addItem(me.id(), request)));
+    return ResponseEntity.ok(ApiResponse.ok(cartService.addToCart(me.id(), request)));
   }
 
   @PatchMapping("/items/{id}")
@@ -48,12 +48,12 @@ public class CartController {
       @AuthenticationPrincipal AuthUser me,
       @PathVariable UUID id,
       @Valid @RequestBody CartItemUpdateRequest request) {
-    return ResponseEntity.ok(ApiResponse.ok(cartService.updateItem(me.id(), id, request)));
+    return ResponseEntity.ok(ApiResponse.ok(cartService.changeItemQuantity(me.id(), id, request)));
   }
 
   @DeleteMapping("/items/{id}")
   public ResponseEntity<ApiResponse<CartResponse>> removeItem(
       @AuthenticationPrincipal AuthUser me, @PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(cartService.removeItem(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(cartService.removeFromCart(me.id(), id)));
   }
 }

@@ -40,7 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
   private final TimeProvider timeProvider;
 
   @Override
-  public void openCod(Order order) {
+  public void createCodPayment(Order order) {
     // COD chờ thu tiền khi giao, số tiền bằng tổng của order lúc này.
     Payment payment =
         Payment.builder()
@@ -53,7 +53,7 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
-  public String openVnpayAttempt(Order order, String clientIp) {
+  public String createVnpayPayment(Order order, String clientIp) {
     // Mã tham chiếu gửi VNPAY (vnp_TxnRef): UUID bỏ dấu gạch (32 ký tự chữ và số), duy nhất nhờ unique
     // index trên transaction_id. Số tiền bằng tổng hiện tại của order.
     String txnRef = UUID.randomUUID().toString().replace("-", "");
@@ -73,7 +73,7 @@ public class PaymentServiceImpl implements PaymentService {
 
   @Override
   @Transactional
-  public VnpayPaymentResponse retryVnpay(UUID customerId, UUID orderId, String clientIp) {
+  public VnpayPaymentResponse retryVnpayPayment(UUID customerId, UUID orderId, String clientIp) {
     // Bước 1: khoá order; không có hoặc của customer khác thì 404 (không lộ order người khác có tồn tại).
     Order order =
         orderRepository
@@ -82,16 +82,16 @@ public class PaymentServiceImpl implements PaymentService {
             .orElseThrow(() -> BusinessException.notFound("Order", orderId));
     // Bước 2: chỉ order VNPAY còn chờ, chưa trả và còn trong hạn 24 giờ mới thanh toán được.
     Instant now = timeProvider.now();
-    if (order.getStatus() != OrderStatus.PENDING || !isPrepayment(order) || hasCompletedPayment(order)) {
+    if (order.getStatus() != OrderStatus.PENDING || !isPaidByVnpay(order) || hasCompletedPayment(order)) {
       throw BusinessException.orderNotPayable("The order cannot be paid with VNPAY");
     }
-    if (isPastDeadline(order, now)) {
+    if (isPaymentDeadlinePassed(order, now)) {
       throw BusinessException.orderNotPayable("The payment deadline has passed");
     }
     // Bước 3: link cũ (nếu còn) hết dùng được, để mỗi lúc chỉ có một link thanh toán được cho order.
     order.getPayments().stream().filter(PaymentServiceImpl::isVnpay).forEach(PaymentServiceImpl::markFailed);
     // Bước 4: lần thử mới với tổng hiện tại và link mới.
-    String paymentUrl = openVnpayAttempt(order, clientIp);
+    String paymentUrl = createVnpayPayment(order, clientIp);
     Payment attempt = order.getPayments().get(order.getPayments().size() - 1);
     return new VnpayPaymentResponse(
         attempt.getId(), order.getId(), attempt.getAmount(), attempt.getStatus(), paymentUrl);
@@ -99,7 +99,7 @@ public class PaymentServiceImpl implements PaymentService {
 
   @Override
   @Transactional
-  public VnpayResult handleVnpayResult(Map<String, String> params) {
+  public VnpayResult handleVnpayCallback(Map<String, String> params) {
     // Bước 1: chữ ký phải đúng, nếu không thì bỏ qua toàn bộ dữ liệu (có thể là request giả mạo).
     if (!vnpayGateway.verify(params)) {
       return new VnpayResult(VnpayIpnResponse.INVALID_SIGNATURE, null, null);
@@ -149,7 +149,7 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
-  public boolean isPrepayment(Order order) {
+  public boolean isPaidByVnpay(Order order) {
     return order.getPayments().stream().anyMatch(PaymentServiceImpl::isVnpay);
   }
 
@@ -159,12 +159,12 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
-  public boolean isPastDeadline(Order order, Instant now) {
+  public boolean isPaymentDeadlinePassed(Order order, Instant now) {
     return !now.isBefore(order.getCreatedAt().plus(PREPAYMENT_DEADLINE));
   }
 
   @Override
-  public void syncPendingPayments(Order order) {
+  public void updatePendingPaymentsAfterCancel(Order order) {
     boolean orderCancelled = order.getStatus() == OrderStatus.CANCELLED;
     for (Payment payment : order.getPayments()) {
       if (payment.getStatus() != PaymentStatus.PENDING) {
@@ -182,7 +182,7 @@ public class PaymentServiceImpl implements PaymentService {
   }
 
   @Override
-  public void completeCod(Order order, Instant now) {
+  public void markCodCollected(Order order, Instant now) {
     order.getPayments().stream()
         .filter(payment -> !isVnpay(payment))
         .forEach(payment -> complete(payment, now));

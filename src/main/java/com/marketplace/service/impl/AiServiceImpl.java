@@ -129,7 +129,7 @@ public class AiServiceImpl implements AiService {
   }
 
   @Override
-  public AiProductSearchResponse ask(AuthUser caller, AiAskRequest request, String clientIp) {
+  public AiProductSearchResponse answerQuestion(AuthUser caller, AiAskRequest request, String clientIp) {
     // Bước 1: ai được hỏi. Seller/admin không có quyền dùng AI; guest không được có session.
     if (caller != null && caller.role() != Role.CUSTOMER) {
       throw BusinessException.forbidden("Only customers and guests can use the AI assistant");
@@ -200,7 +200,7 @@ public class AiServiceImpl implements AiService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<AiMessageResponse> listMessages(UUID customerId, UUID sessionId) {
+  public List<AiMessageResponse> listSessionMessages(UUID customerId, UUID sessionId) {
     findOwnedSession(customerId, sessionId);
     return messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
         .map(aiMapper::toMessage)

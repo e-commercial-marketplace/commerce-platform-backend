@@ -41,7 +41,7 @@ public class ReviewController {
       @PathVariable UUID productId,
       @Valid @RequestBody ReviewCreateRequest request) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.ok(reviewService.create(me.id(), productId, request)));
+        .body(ApiResponse.ok(reviewService.createReview(me.id(), productId, request)));
   }
 
   @GetMapping
@@ -49,6 +49,6 @@ public class ReviewController {
       @PathVariable UUID productId,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return ResponseEntity.ok(ApiResponse.ok(reviewService.list(productId, page, size)));
+    return ResponseEntity.ok(ApiResponse.ok(reviewService.listProductReviews(productId, page, size)));
   }
 }

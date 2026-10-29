@@ -10,7 +10,7 @@ public interface PasswordResetService {
    * Cấp và gửi mã nếu email thuộc tài khoản đang hoạt động. Không bao giờ báo cho client biết email
    * có tồn tại hay không: mọi trường hợp đều kết thúc bình thường.
    */
-  void requestReset(ForgotPasswordRequest request);
+  void sendResetCode(ForgotPasswordRequest request);
 
   /**
    * Đặt mật khẩu mới bằng mã. Thành công thì thu hồi mọi refresh token của user.

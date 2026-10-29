@@ -11,10 +11,10 @@ public interface CartService {
   CartResponse getCart(UUID customerId);
 
   /** Thêm product; đã có trong giỏ thì cộng dồn số lượng. */
-  CartResponse addItem(UUID customerId, CartItemAddRequest request);
+  CartResponse addToCart(UUID customerId, CartItemAddRequest request);
 
   /** Đặt lại số lượng của một dòng thuộc giỏ của customer. */
-  CartResponse updateItem(UUID customerId, UUID cartItemId, CartItemUpdateRequest request);
+  CartResponse changeItemQuantity(UUID customerId, UUID cartItemId, CartItemUpdateRequest request);
 
-  CartResponse removeItem(UUID customerId, UUID cartItemId);
+  CartResponse removeFromCart(UUID customerId, UUID cartItemId);
 }

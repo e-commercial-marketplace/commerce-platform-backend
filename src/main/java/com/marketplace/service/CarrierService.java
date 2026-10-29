@@ -10,13 +10,13 @@ import java.util.UUID;
 public interface CarrierService {
 
   /** Admin: tất cả đơn vị, kể cả đã tắt, theo tên. */
-  List<CarrierResponse> listAll();
+  List<CarrierResponse> listAllCarriers();
 
   /** Seller đã duyệt: chỉ đơn vị đang hoạt động, theo tên. */
-  List<CarrierResponse> listActive(UUID sellerId);
+  List<CarrierResponse> listActiveCarriers(UUID sellerId);
 
-  CarrierResponse create(CarrierCreateRequest request);
+  CarrierResponse createCarrier(CarrierCreateRequest request);
 
   /** Đổi tên và/hoặc bật tắt; trường null thì giữ nguyên. Không có xoá. */
-  CarrierResponse update(UUID id, CarrierUpdateRequest request);
+  CarrierResponse updateCarrier(UUID id, CarrierUpdateRequest request);
 }

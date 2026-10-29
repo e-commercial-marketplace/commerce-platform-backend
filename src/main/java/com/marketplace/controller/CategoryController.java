@@ -20,6 +20,6 @@ public class CategoryController {
 
   @GetMapping
   public ResponseEntity<ApiResponse<List<CategorySummaryResponse>>> list() {
-    return ResponseEntity.ok(ApiResponse.ok(categoryService.listAll()));
+    return ResponseEntity.ok(ApiResponse.ok(categoryService.listCategories()));
   }
 }

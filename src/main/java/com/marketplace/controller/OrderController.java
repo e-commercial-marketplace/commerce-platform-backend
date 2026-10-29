@@ -54,19 +54,19 @@ public class OrderController {
       @AuthenticationPrincipal AuthUser me,
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-    return ResponseEntity.ok(ApiResponse.ok(orderService.listOrders(me.id(), page, size)));
+    return ResponseEntity.ok(ApiResponse.ok(orderService.listMyOrders(me.id(), page, size)));
   }
 
   // Khách xác nhận đã nhận hàng, đóng order (DELIVERED -> COMPLETED).
   @PatchMapping("/{id}/received")
   public ResponseEntity<ApiResponse<OrderResponse>> confirmReceived(
       @AuthenticationPrincipal AuthUser me, @PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(orderService.confirmReceived(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(orderService.confirmOrderReceived(me.id(), id)));
   }
 
   @GetMapping("/{id}")
   public ResponseEntity<ApiResponse<OrderResponse>> get(
       @AuthenticationPrincipal AuthUser me, @PathVariable UUID id) {
-    return ResponseEntity.ok(ApiResponse.ok(orderService.getOrder(me.id(), id)));
+    return ResponseEntity.ok(ApiResponse.ok(orderService.getMyOrder(me.id(), id)));
   }
 }

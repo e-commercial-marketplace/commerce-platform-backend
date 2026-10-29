@@ -18,11 +18,11 @@ public interface AiService {
    * @param caller người gọi lấy từ token; {@code null} với guest
    * @param clientIp IP để đếm hạn mức của guest
    */
-  AiProductSearchResponse ask(AuthUser caller, AiAskRequest request, String clientIp);
+  AiProductSearchResponse answerQuestion(AuthUser caller, AiAskRequest request, String clientIp);
 
   /** Các session của customer, mới nhất trước. */
   List<AiChatSessionResponse> listSessions(UUID customerId);
 
   /** Lịch sử một session của customer, cũ nhất trước; không có hoặc của người khác thì 404. */
-  List<AiMessageResponse> listMessages(UUID customerId, UUID sessionId);
+  List<AiMessageResponse> listSessionMessages(UUID customerId, UUID sessionId);
 }
