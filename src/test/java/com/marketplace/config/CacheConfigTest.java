@@ -3,7 +3,11 @@ package com.marketplace.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.response.CategorySummaryResponse;
+import com.marketplace.dto.response.ProductResponse;
+import com.marketplace.dto.response.ProductSummaryResponse;
+import java.math.BigDecimal;
 import com.marketplace.dto.response.SellerShopResponse;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -37,6 +41,28 @@ class CacheConfigTest {
     assertThat(roundTrip(CacheConfig.SELLER_SHOPS, shop)).isEqualTo(shop);
     assertThat(configs.get(CacheConfig.SELLER_SHOPS).getTtlFunction().getTimeToLive(shop, shop))
         .isEqualTo(Duration.ofMinutes(10));
+  }
+
+  @Test
+  void productDetailAndSearchPagesRoundTripAsJson() {
+    CategorySummaryResponse category = new CategorySummaryResponse(UUID.randomUUID(), "Laptop");
+    ProductResponse product =
+        new ProductResponse(
+            UUID.randomUUID(), "MacBook", "d", "https://example.com/p.jpg", new BigDecimal("19990000.00"), 5,
+            new BigDecimal("4.50"), 2, true, category, UUID.randomUUID());
+    assertThat(roundTrip(CacheConfig.PRODUCTS, product)).isEqualTo(product);
+
+    // PageResponse có kiểu tham số: phải đọc lại đúng ProductSummaryResponse bên trong, không phải Map.
+    PageResponse<ProductSummaryResponse> page =
+        new PageResponse<>(
+            List.of(
+                new ProductSummaryResponse(
+                    product.id(), "MacBook", "d", "https://example.com/p.jpg", new BigDecimal("19990000.00"), 5,
+                    new BigDecimal("4.50"), 2, true, category, product.sellerId())),
+            0, 20, 1, 1);
+    assertThat(roundTrip(CacheConfig.PRODUCT_SEARCH, page)).isEqualTo(page);
+    assertThat(configs.get(CacheConfig.PRODUCT_SEARCH).getTtlFunction().getTimeToLive(page, page))
+        .isEqualTo(Duration.ofSeconds(60));
   }
 
   private Object roundTrip(String cache, Object value) {
