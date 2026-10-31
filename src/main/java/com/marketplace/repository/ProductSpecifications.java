@@ -4,6 +4,7 @@ import com.marketplace.common.util.LikePattern;
 import com.marketplace.entity.Product;
 import jakarta.persistence.criteria.Expression;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -36,6 +37,11 @@ public final class ProductSpecifications {
 
   public static Specification<Product> ratingAtLeast(BigDecimal min) {
     return (root, query, cb) -> cb.greaterThanOrEqualTo(root.<BigDecimal>get("ratingAverage"), min);
+  }
+
+  /** Chỉ lấy các product có id trong danh sách (kết quả tìm theo nghĩa của {@code ProductIndexer}). */
+  public static Specification<Product> idIn(Collection<UUID> ids) {
+    return (root, query, cb) -> root.get("id").in(ids);
   }
 
   /** Tìm không phân biệt hoa thường trong tên hoặc mô tả. */

@@ -1,11 +1,13 @@
 package com.marketplace.repository;
 
 import com.marketplace.entity.Product;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -25,8 +27,17 @@ public interface ProductRepository
   @EntityGraph(attributePaths = {"category", "seller"})
   Page<Product> findAll(Specification<Product> spec, Pageable pageable);
 
+  /** Như trên nhưng không phân trang (nhánh tìm theo nghĩa, tối đa 50 dòng). */
+  @Override
+  @EntityGraph(attributePaths = {"category", "seller"})
+  List<Product> findAll(Specification<Product> spec, Sort sort);
+
   @EntityGraph(attributePaths = {"category", "seller"})
   Optional<Product> findByIdAndActiveTrue(UUID id);
+
+  /** Mọi product đang bán kèm category, để {@code ProductIndexer} dựng chữ embedding. */
+  @EntityGraph(attributePaths = "category")
+  List<Product> findByActiveTrue();
 
   /** Category còn product nào không (kể cả product đã ẩn), dùng để chặn xoá category. */
   boolean existsByCategoryId(UUID categoryId);

@@ -1,5 +1,6 @@
 package com.marketplace.ai.rag;
 
+import com.marketplace.common.util.PgVector;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -83,7 +84,7 @@ public class PolicyKnowledge {
                   chunk.topic(),
                   chunk.title(),
                   chunk.content(),
-                  toVectorText(vectors.get(i)));
+                  PgVector.toText(vectors.get(i)));
             }
           });
       log.info("Policy RAG loaded {} chunks from {}", chunks.size(), TERMS_FILE);
@@ -101,7 +102,7 @@ public class PolicyKnowledge {
       return List.of();
     }
     try {
-      String questionVector = toVectorText(embeddingModel.embed(question));
+      String questionVector = PgVector.toText(embeddingModel.embed(question));
       // "<=>" là khoảng cách cosine của pgvector: càng nhỏ càng gần nghĩa.
       return jdbcTemplate.queryForList(
           "SELECT content FROM policy_chunks ORDER BY embedding <=> CAST(? AS vector) LIMIT ?",
@@ -149,17 +150,5 @@ public class PolicyKnowledge {
       chunks.add(new Chunk(title, topic, content.toString().trim()));
     }
     return chunks;
-  }
-
-  /** Vector dạng chữ mà pgvector hiểu, ví dụ "[0.1,0.2,0.3]". */
-  static String toVectorText(float[] vector) {
-    StringBuilder text = new StringBuilder("[");
-    for (int i = 0; i < vector.length; i++) {
-      if (i > 0) {
-        text.append(',');
-      }
-      text.append(vector[i]);
-    }
-    return text.append(']').toString();
   }
 }

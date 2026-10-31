@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.marketplace.ai.rag.PolicyKnowledge.Chunk;
+import com.marketplace.common.util.PgVector;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ class PolicyKnowledgeTest {
 
   @Test
   void aVectorIsWrittenInPgvectorFormat() {
-    assertThat(PolicyKnowledge.toVectorText(new float[] {0.5f, -1.0f, 2.25f})).isEqualTo("[0.5,-1.0,2.25]");
+    assertThat(PgVector.toText(new float[] {0.5f, -1.0f, 2.25f})).isEqualTo("[0.5,-1.0,2.25]");
   }
 
   @Test

@@ -2,6 +2,7 @@ package com.marketplace.service.impl;
 
 import static com.marketplace.repository.ProductSpecifications.inCategory;
 import static com.marketplace.repository.ProductSpecifications.activeIs;
+import static com.marketplace.repository.ProductSpecifications.idIn;
 import static com.marketplace.repository.ProductSpecifications.orderedByRelevance;
 import static com.marketplace.repository.ProductSpecifications.priceAtLeast;
 import static com.marketplace.repository.ProductSpecifications.priceAtMost;
@@ -20,11 +21,16 @@ import com.marketplace.enums.ProductSort;
 import com.marketplace.mapper.ProductMapper;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.service.ProductService;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -38,9 +44,11 @@ public class ProductServiceImpl implements ProductService {
 
   private final ProductRepository productRepository;
   private final ProductMapper productMapper;
+  private final ProductIndexer productIndexer;
 
   @Override
-  @Transactional(readOnly = true)
+  // Không @Transactional: nhánh tìm theo nghĩa gọi provider embedding, không được giữ kết nối DB trong lúc chờ.
+  // Mỗi câu findAll tự chạy transaction riêng; category và seller đã được nạp sẵn bằng @EntityGraph.
   // Một trang kết quả sống 60 giây; key là toàn bộ tham số (record nên toString liệt kê đủ các field).
   @Cacheable(cacheNames = CacheConfig.PRODUCT_SEARCH, key = "#request.toString()")
   public PageResponse<ProductSummaryResponse> searchListedProducts(ProductSearchRequest request) {
@@ -52,26 +60,25 @@ public class ProductServiceImpl implements ProductService {
     String text = request.q() == null || request.q().isBlank() ? null : request.q().trim();
     ProductSort sort = ProductSort.resolve(request.sort(), text != null);
 
-    Specification<Product> spec = activeIs(true); // công khai chỉ thấy product đang bán
-    if (text != null) {
-      spec = spec.and(textMatches(text));
-    }
+    // Các bộ lọc trừ từ khoá: dùng chung cho tìm theo chữ và tìm theo nghĩa.
+    Specification<Product> filters = activeIs(true); // công khai chỉ thấy product đang bán
     if (request.categoryId() != null) {
-      spec = spec.and(inCategory(request.categoryId()));
+      filters = filters.and(inCategory(request.categoryId()));
     }
     // Xem shop của một seller: chỉ giữ product của seller đó (vẫn chỉ là product đang bán, vì spec activeIs(true) ở trên).
     if (request.sellerId() != null) {
-      spec = spec.and(soldBy(request.sellerId()));
+      filters = filters.and(soldBy(request.sellerId()));
     }
     if (request.minPrice() != null) {
-      spec = spec.and(priceAtLeast(request.minPrice()));
+      filters = filters.and(priceAtLeast(request.minPrice()));
     }
     if (request.maxPrice() != null) {
-      spec = spec.and(priceAtMost(request.maxPrice()));
+      filters = filters.and(priceAtMost(request.maxPrice()));
     }
     if (request.minRating() != null) {
-      spec = spec.and(ratingAtLeast(request.minRating()));
+      filters = filters.and(ratingAtLeast(request.minRating()));
     }
+    Specification<Product> spec = text == null ? filters : filters.and(textMatches(text));
 
     Pageable pageable;
     if (sort == ProductSort.RELEVANCE) {
@@ -82,8 +89,39 @@ public class ProductServiceImpl implements ProductService {
       pageable = PageRequest.of(request.page(), request.size(), toSort(sort));
     }
 
-    // Truy vấn một trang rồi đổi từng Product thành ProductSummaryResponse.
-    return PageResponse.from(productRepository.findAll(spec, pageable), productMapper::toSummary);
+    // Truy vấn một trang; không product nào chứa từ khoá thì thử tìm theo nghĩa.
+    Page<Product> page = productRepository.findAll(spec, pageable);
+    if (text != null && page.getTotalElements() == 0) {
+      page = searchByMeaning(text, filters, sort, request);
+    }
+    // Đổi từng Product thành ProductSummaryResponse.
+    return PageResponse.from(page, productMapper::toSummary);
+  }
+
+  /**
+   * Fallback khi tìm theo chữ không ra gì: lấy các product gần nghĩa từ {@link ProductIndexer}, áp lại mọi bộ
+   * lọc (kể cả active, vì bảng embedding có thể còn product đã ẩn), rồi sắp: {@code relevance} giữ thứ tự gần
+   * nghĩa, các kiểu khác sắp như thường.
+   */
+  private Page<Product> searchByMeaning(
+      String text, Specification<Product> filters, ProductSort sort, ProductSearchRequest request) {
+    Pageable pageable = PageRequest.of(request.page(), request.size());
+    List<UUID> ids = productIndexer.findSimilar(text);
+    if (ids.isEmpty()) {
+      return Page.empty(pageable);
+    }
+    Specification<Product> spec = filters.and(idIn(ids));
+    List<Product> products;
+    if (sort == ProductSort.RELEVANCE) {
+      products = new ArrayList<>(productRepository.findAll(spec, Sort.unsorted()));
+      products.sort(Comparator.comparingInt(product -> ids.indexOf(product.getId())));
+    } else {
+      products = productRepository.findAll(spec, toSort(sort));
+    }
+    // shortcut: phân trang trong bộ nhớ, chỉ ổn vì findSimilar trả tối đa 50 id; nhiều hơn thì phân trang bằng SQL.
+    int from = (int) Math.min(pageable.getOffset(), products.size());
+    int to = Math.min(from + pageable.getPageSize(), products.size());
+    return new PageImpl<>(products.subList(from, to), pageable, products.size());
   }
 
   @Override
