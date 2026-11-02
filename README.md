@@ -87,6 +87,7 @@ values come from environment variables. Only the first four are required.
 | `APP_MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `APP_MAIL_FROM` | no | SMTP for the password-reset email. With `APP_MAIL_ENABLED=false` (default) the code is only written to the log, for local development |
 | `APP_VNPAY_TMN_CODE`, `APP_VNPAY_HASH_SECRET` | for VNPAY | Sandbox merchant credentials from the VNPAY registration email. Never commit real values |
 | `APP_VNPAY_PAY_URL`, `APP_VNPAY_RETURN_URL`, `APP_VNPAY_APP_REDIRECT_URL` | no | VNPAY payment page, the URL VNPAY sends the browser back to (use the deployed domain in production), and the app deep link opened afterwards |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | for image upload | Cloudinary account (Settings > API Keys). Empty turns upload off: the signature endpoint answers `503` and image URLs are not checked. The secret must never reach the mobile app |
 | `REDIS_URL` | no | Redis connection, for example `redis://localhost:6379`. On Render use the *internal* Key Value URL |
 | `APP_CACHE_ENABLED` | no | `true` turns on the Redis read cache; default `false` (every read goes to PostgreSQL) |
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | no | OpenAI-compatible provider for the assistant (OpenAI, DeepSeek, Groq, OpenRouter...). `AI_BASE_URL` has no `/v1` suffix. Without `AI_API_KEY` the assistant answers with rules only |

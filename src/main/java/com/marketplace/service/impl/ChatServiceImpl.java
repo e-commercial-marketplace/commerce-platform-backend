@@ -1,5 +1,6 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.cloudinary.CloudinaryGateway;
 import com.marketplace.common.exception.BusinessException;
 import com.marketplace.common.response.PageResponse;
 import com.marketplace.common.util.Pages;
@@ -61,6 +62,7 @@ public class ChatServiceImpl implements ChatService {
   private final TimeProvider timeProvider;
   private final ApplicationEventPublisher eventPublisher;
   private final TransactionTemplate transactionTemplate;
+  private final CloudinaryGateway cloudinary;
 
   @Override
   @Transactional(readOnly = true)
@@ -132,6 +134,9 @@ public class ChatServiceImpl implements ChatService {
     String imageUrl = request.imageUrl() == null || request.imageUrl().isBlank() ? null : request.imageUrl().trim();
     if (content.isEmpty() && imageUrl == null) {
       throw BusinessException.validation("A message needs content or an imageUrl");
+    }
+    if (imageUrl != null) {
+      cloudinary.requireOwnImage(imageUrl);
     }
 
     // Bước 2: key này đã gửi rồi thì trả lại đúng tin cũ, không tạo tin mới, không đẩy sự kiện mới.

@@ -1,5 +1,6 @@
 package com.marketplace.service.impl;
 
+import com.marketplace.cloudinary.CloudinaryGateway;
 import com.marketplace.common.exception.BusinessException;
 import static com.marketplace.repository.ProductSpecifications.activeIs;
 import static com.marketplace.repository.ProductSpecifications.soldBy;
@@ -29,6 +30,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service // Spring tạo và quản lý class nghiệp vụ này
 @RequiredArgsConstructor // Lombok tạo constructor nhận 4 field final bên dưới
@@ -38,6 +40,7 @@ public class SellerProductServiceImpl implements SellerProductService {
   private final CategoryRepository categoryRepository; // tìm category theo id
   private final UserRepository userRepository; // tra trạng thái duyệt của seller trong DB
   private final ProductMapper productMapper; // đổi Product thành ProductResponse
+  private final CloudinaryGateway cloudinary; // kiểm tra ảnh thuộc Cloudinary của dự án
 
   // Danh sách product của chính seller. Chỉ đọc nên khai báo readOnly.
   @Override
@@ -97,8 +100,11 @@ public class SellerProductServiceImpl implements SellerProductService {
     if (Boolean.FALSE.equals(request.active())) {
       product.setActive(false);
     }
-    // Bước 5: product đang bán phải có ảnh.
+    // Bước 5: product đang bán phải có ảnh, và ảnh phải thuộc Cloudinary của dự án.
     requireImageWhenActive(product);
+    if (StringUtils.hasText(request.imageUrl())) {
+      cloudinary.requireOwnImage(request.imageUrl());
+    }
     // Bước 6: lưu rồi trả về dạng response.
     return productMapper.toResponse(productRepository.save(product));
   }
@@ -123,6 +129,10 @@ public class SellerProductServiceImpl implements SellerProductService {
       product.setDescription(request.description());
     }
     if (request.imageUrl() != null) {
+      // Chỉ kiểm tra khi đổi ảnh, để product cũ dùng ảnh ngoài Cloudinary vẫn sửa được giá, tồn kho.
+      if (StringUtils.hasText(request.imageUrl()) && !request.imageUrl().equals(product.getImageUrl())) {
+        cloudinary.requireOwnImage(request.imageUrl());
+      }
       product.setImageUrl(request.imageUrl());
     }
     if (request.price() != null) {
