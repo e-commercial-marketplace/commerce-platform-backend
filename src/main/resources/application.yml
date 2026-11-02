@@ -125,6 +125,12 @@ app:
     api-key: ${AI_API_KEY:}
     # Có AI_EMBEDDING_API_KEY thì bật RAG điều khoản (cần PostgreSQL có pgvector); rỗng thì tắt.
     embedding-api-key: ${AI_EMBEDDING_API_KEY:}
+  cloudinary:
+    # Upload ảnh trực tiếp lên Cloudinary (features/upload/API_CONTRACT.md). Trống thì tắt: API ký trả 503, không
+    # kiểm tra URL ảnh. API secret chỉ nằm ở backend, tuyệt đối không đưa vào biến của app di động.
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
   cache:
     # false (mặc định): không dùng Redis, mọi dữ liệu đọc thẳng PostgreSQL. Bật khi đã có REDIS_URL.
     # Một cờ cho cả cache giỏ hàng và cache danh mục/trang shop (architecture §5.4).

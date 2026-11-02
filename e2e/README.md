@@ -3,6 +3,9 @@
 Chạy các hành trình chính vào **backend thật** (server HTTP thật, Postgres thật, migration Flyway thật).
 Bổ sung cho test MockMvc trong `src/test` (chạy trên H2), không thay thế.
 
+> Các hành trình dùng URL ảnh `example.com`. Khi chạy E2E, để trống `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`
+> và `CLOUDINARY_API_SECRET` trong `.env`, nếu không các URL này sẽ bị từ chối với lỗi `400`.
+
 ## Bao phủ
 
 | Thư mục | Hành trình |

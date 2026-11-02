@@ -25,6 +25,7 @@ public enum ErrorCode {
   REVIEW_NOT_ELIGIBLE(HttpStatus.FORBIDDEN, "You can review a product only after a completed order"),
   REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "You already reviewed this product"),
   RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests, try again in a minute"),
+  UPLOAD_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "Image upload is not configured"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;
