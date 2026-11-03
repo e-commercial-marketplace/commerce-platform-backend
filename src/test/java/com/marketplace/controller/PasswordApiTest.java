@@ -115,6 +115,17 @@ class PasswordApiTest {
   }
 
   @Test
+  void aFailedEmailStillAnswersTheSameSuccess() throws Exception {
+    String email = "mail-down-" + UUID.randomUUID() + "@test.com";
+    register(email);
+    org.mockito.Mockito.doThrow(new org.springframework.web.client.ResourceAccessException("Brevo is down"))
+        .when(emailService)
+        .sendPasswordResetCode(eq(email), org.mockito.ArgumentMatchers.anyString(), anyLong());
+
+    forgot(email).andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+  }
+
+  @Test
   void disabledAccountsGetNoCodeAndMalformedEmailIs400() throws Exception {
     String email = email();
     register(email);
