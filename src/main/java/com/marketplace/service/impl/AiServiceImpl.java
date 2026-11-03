@@ -85,6 +85,10 @@ public class AiServiceImpl implements AiService {
          not sure.
       """;
 
+  // Câu thông báo chung cho mọi trường hợp không trả lời được.
+  private static final String AI_UNAVAILABLE_MESSAGE =
+      "Vui lòng thử lại sau";
+
   private final ChatClient chatClient;
   private final AiChatMemory chatMemory;
   private final PolicyTools policyTools;
@@ -98,6 +102,7 @@ public class AiServiceImpl implements AiService {
   private final AiMapper aiMapper;
   private final TimeProvider timeProvider;
   private final boolean providerConfigured;
+  private final boolean rulesEnabled;
 
   public AiServiceImpl(
       ChatClient.Builder chatClientBuilder,
@@ -112,7 +117,8 @@ public class AiServiceImpl implements AiService {
       UserRepository userRepository,
       AiMapper aiMapper,
       TimeProvider timeProvider,
-      @Value("${app.ai.api-key:}") String apiKey) {
+      @Value("${app.ai.api-key:}") String apiKey,
+      @Value("${app.ai.rules-enabled:true}") boolean rulesEnabled) {
     this.chatClient = chatClientBuilder.defaultSystem(SYSTEM_PROMPT).build();
     this.chatMemory = chatMemory;
     this.policyTools = policyTools;
@@ -126,6 +132,7 @@ public class AiServiceImpl implements AiService {
     this.aiMapper = aiMapper;
     this.timeProvider = timeProvider;
     this.providerConfigured = apiKey != null && !apiKey.isBlank();
+    this.rulesEnabled = rulesEnabled;
   }
 
   @Override
@@ -140,7 +147,16 @@ public class AiServiceImpl implements AiService {
     // Bước 2: hạn mức theo phút: 1-20 dùng LLM, 21-60 trả lời bằng luật, quá 60 thì 429.
     AiRateLimiter.Level level = rateLimiter.acquire(caller != null ? "user:" + caller.id() : "ip:" + clientIp);
     if (level == AiRateLimiter.Level.BLOCKED) {
-      throw BusinessException.rateLimited("Too many AI questions, try again in a minute");
+      throw BusinessException.rateLimited(AI_UNAVAILABLE_MESSAGE);
+    }
+    // Đã tắt trả lời bằng luật mà biết trước LLM không dùng được: báo lỗi trước khi tạo session.
+    if (!rulesEnabled) {
+      if (level == AiRateLimiter.Level.RULES) {
+        throw BusinessException.rateLimited(AI_UNAVAILABLE_MESSAGE);
+      }
+      if (!providerConfigured || cooldown.active()) {
+        throw BusinessException.aiUnavailable(AI_UNAVAILABLE_MESSAGE);
+      }
     }
     // Bước 3: session của customer (mới hoặc của chính mình); guest không có.
     UUID sessionId = caller == null ? null : resolveSession(caller.id(), request.sessionId());
@@ -178,6 +194,10 @@ public class AiServiceImpl implements AiService {
       userMessageSaved = sessionId != null;
     }
 
+    // Provider vừa lỗi hoặc trả rỗng mà đã tắt trả lời bằng luật: không còn cách trả lời nào khác.
+    if (!rulesEnabled) {
+      throw BusinessException.aiUnavailable(AI_UNAVAILABLE_MESSAGE);
+    }
     // Bước 5: trả lời bằng luật; customer vẫn được lưu lượt hỏi đáp này vào session.
     RuleAnswer rules = ruleBasedAnswerer.answer(message);
     if (sessionId != null) {

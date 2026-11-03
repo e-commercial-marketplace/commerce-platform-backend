@@ -116,6 +116,11 @@ public class BusinessException extends RuntimeException {
     return new BusinessException(ErrorCode.RATE_LIMITED, message);
   }
 
+  /** Lỗi 503 {@code AI_UNAVAILABLE}: đã tắt trả lời bằng luật và LLM không trả lời được. */
+  public static BusinessException aiUnavailable(String message) {
+    return new BusinessException(ErrorCode.AI_UNAVAILABLE, message);
+  }
+
   /** Lỗi 503 {@code UPLOAD_NOT_CONFIGURED}: server chưa có cấu hình Cloudinary. */
   public static BusinessException uploadNotConfigured(String message) {
     return new BusinessException(ErrorCode.UPLOAD_NOT_CONFIGURED, message);

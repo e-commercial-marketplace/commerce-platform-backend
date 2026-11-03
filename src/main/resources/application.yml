@@ -109,6 +109,8 @@ app:
   ai:
     # Có AI_API_KEY thì dùng LLM; rỗng thì /ai/ask luôn trả lời bằng luật, không gọi provider.
     api-key: ${AI_API_KEY:}
+    # false: không trả lời bằng luật; LLM không dùng được thì trả 429 hoặc 503 AI_UNAVAILABLE.
+    rules-enabled: ${APP_AI_RULES_ENABLED:true}
     # Có AI_EMBEDDING_API_KEY thì bật RAG điều khoản (cần PostgreSQL có pgvector); rỗng thì tắt.
     embedding-api-key: ${AI_EMBEDDING_API_KEY:}
   cloudinary:
