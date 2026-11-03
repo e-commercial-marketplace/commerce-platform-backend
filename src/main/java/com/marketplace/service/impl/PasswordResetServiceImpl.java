@@ -19,10 +19,10 @@ import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Quên mật khẩu bằng mã 6 chữ số gửi qua email. Quy tắc theo features/auth/API_CONTRACT.md:
@@ -83,7 +83,7 @@ public class PasswordResetServiceImpl implements PasswordResetService {
     try {
       emailService.sendPasswordResetCode(user.getEmail(), code, props.codeTtlMinutes());
       log.info("Password reset code issued for user {}", user.getId());
-    } catch (MailException e) {
+    } catch (RestClientException e) {
       log.error("Could not send the password reset email to user {}", user.getId(), e);
     }
   }

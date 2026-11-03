@@ -21,22 +21,6 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
-  # SMTP để gửi email. Mặc định là Gmail (cổng 587, STARTTLS). Chỉ thật sự gửi khi APP_MAIL_ENABLED=true.
-  # MAIL_PASSWORD với Gmail là App Password 16 ký tự, KHÔNG phải mật khẩu đăng nhập Gmail.
-  mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
   # Trợ lý AI qua API tương thích OpenAI. Đổi provider chỉ cần đổi 3 biến AI_*, không đổi code.
   # Starter bắt buộc có api-key lúc khởi động: thiếu thì dùng giá trị giả "not-configured"; AiServiceImpl
   # thấy AI_API_KEY rỗng thì không bao giờ gọi provider (trả lời bằng luật thay thế).
@@ -112,8 +96,10 @@ app:
   mail:
     # false (mặc định): không gửi email, chỉ ghi mã ra log. CHỈ dùng khi phát triển local.
     enabled: ${APP_MAIL_ENABLED:false}
-    # Địa chỉ người gửi; với Gmail phải trùng tài khoản MAIL_USERNAME.
-    from: ${APP_MAIL_FROM:${MAIL_USERNAME:}}
+    # Địa chỉ người gửi, phải đã được xác minh trên Brevo.
+    from: ${APP_MAIL_FROM:}
+    # Gửi qua API HTTPS của Brevo vì Render miễn phí chặn cổng SMTP.
+    brevo-api-key: ${BREVO_API_KEY:}
   password-reset:
     # Quy tắc mã đặt lại mật khẩu theo features/auth/API_CONTRACT.md (Password management).
     code-ttl-minutes: 15
@@ -155,10 +141,6 @@ management:
     health:
       show-details: when-authorized
   health:
-    # Không để SMTP quyết định app có "khoẻ" hay không: email chỉ gửi theo kiểu cố gắng, lỗi gửi được xử lý
-    # riêng. Nếu bật, mất kết nối Gmail sẽ làm /actuator/health trả 503 và Render coi deploy là hỏng.
-    mail:
-      enabled: false
     # Redis chỉ là cache tuỳ chọn: mất Redis không được làm /actuator/health trả 503 (Render coi deploy hỏng).
     redis:
       enabled: false

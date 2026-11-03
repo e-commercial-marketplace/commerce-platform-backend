@@ -46,11 +46,6 @@
       <groupId>org.springframework.ai</groupId>
       <artifactId>spring-ai-starter-model-openai</artifactId>
     </dependency>
-    <!-- Gửi email (mã đặt lại mật khẩu) qua SMTP; cấu hình bằng biến môi trường MAIL_*. -->
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-mail</artifactId>
-    </dependency>
     <!-- Boilerplate reduction for entities and DTOs; not required at runtime. -->
     <dependency>
       <groupId>org.projectlombok</groupId>

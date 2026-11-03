@@ -84,7 +84,7 @@ values come from environment variables. Only the first four are required.
 | `APP_JWT_REFRESH_EXPIRATION_MS` | no | Refresh-token lifetime in ms; default `604800000` (7 days) |
 | `APP_ADMIN_EMAIL`, `APP_ADMIN_PASSWORD` | no | Create the first admin at startup when the database has none (skipped when empty). Never commit real values |
 | `APP_CORS_ALLOWED_ORIGIN_PATTERNS` | no | Browser origins allowed to call the API, comma separated; empty means none |
-| `APP_MAIL_ENABLED`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `APP_MAIL_FROM` | no | SMTP for the password-reset email. With `APP_MAIL_ENABLED=false` (default) the code is only written to the log, for local development |
+| `APP_MAIL_ENABLED`, `BREVO_API_KEY`, `APP_MAIL_FROM` | no | Brevo HTTPS API for the password-reset email (Render free services block SMTP ports); the sender must be verified on Brevo. With `APP_MAIL_ENABLED=false` (default) the code is only written to the log, for local development |
 | `APP_VNPAY_TMN_CODE`, `APP_VNPAY_HASH_SECRET` | for VNPAY | Sandbox merchant credentials from the VNPAY registration email. Never commit real values |
 | `APP_VNPAY_PAY_URL`, `APP_VNPAY_RETURN_URL`, `APP_VNPAY_APP_REDIRECT_URL` | no | VNPAY payment page, the URL VNPAY sends the browser back to (use the deployed domain in production), and the app deep link opened afterwards |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | for image upload | Cloudinary account (Settings > API Keys). Empty turns upload off: the signature endpoint answers `503` and image URLs are not checked. The secret must never reach the mobile app |
