@@ -158,6 +158,8 @@ The assistant answers **without the LLM** (`answeredBy = RULES`: price/rating/ca
 answers, hints) when `AI_API_KEY` is empty, when the provider fails, while the provider asked the backend to
 wait after an HTTP 429, and after 20 questions in a minute. After 60 questions in a minute the request is
 rejected with `429 RATE_LIMITED`. The counters live in memory, so they fit a single instance.
+Set `APP_AI_RULES_ENABLED=false` to turn the rule-based answers off: those cases then return `429 RATE_LIMITED`
+or `503 AI_UNAVAILABLE`.
 
 Example with DeepSeek:
 

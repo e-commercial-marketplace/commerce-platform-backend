@@ -26,6 +26,7 @@ public enum ErrorCode {
   REVIEW_ALREADY_EXISTS(HttpStatus.CONFLICT, "You already reviewed this product"),
   RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests, try again in a minute"),
   UPLOAD_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "Image upload is not configured"),
+  AI_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "The AI assistant is unavailable"),
   INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Unexpected error");
 
   private final HttpStatus status;
