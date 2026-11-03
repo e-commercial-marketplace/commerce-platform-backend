@@ -206,6 +206,62 @@ class VoucherApiTest {
         .andExpect(jsonPath("$.data.totalAmount").value("45.00"));
   }
 
+  // ---------- xem voucher công khai ----------
+
+  @Test
+  void aGuestSeesOnlyUsableVouchersWithoutUseCounts() throws Exception {
+    String usable = activeVoucher(10, 5);
+    String future = "F" + suffix();
+    create(future, 10, Instant.now().plus(Duration.ofDays(1)), Instant.now().plus(Duration.ofDays(2)), 5)
+        .andExpect(status().isCreated());
+    String expired = "E" + suffix();
+    create(expired, 10, Instant.now().minus(Duration.ofDays(2)), Instant.now().minus(Duration.ofDays(1)), 5)
+        .andExpect(status().isCreated());
+    String usedUp = activeVoucher(10, 1);
+    checkout(usedUp, addToCart(phone, 1)).andExpect(status().isCreated());
+
+    String body = mvc.perform(get("/api/v1/vouchers").param("size", "100"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.content[0].usageLimit").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].timesUsed").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].validFrom").doesNotExist())
+        .andExpect(jsonPath("$.data.content[0].validTo").exists())
+        .andReturn().getResponse().getContentAsString();
+    List<String> codes = JsonPath.read(body, "$.data.content[*].code");
+    assertThat(codes).contains(usable).doesNotContain(future, expired, usedUp);
+  }
+
+  @Test
+  void usableVouchersAreSortedByPercentThenExpiryAndPaged() throws Exception {
+    Instant start = Instant.now().minusSeconds(60);
+    String lowest = "L" + suffix();
+    create(lowest, 96, start, Instant.now().plus(Duration.ofDays(1)), 5).andExpect(status().isCreated());
+    String laterExpiry = "A" + suffix();
+    create(laterExpiry, 97, start, Instant.now().plus(Duration.ofDays(9)), 5).andExpect(status().isCreated());
+    String soonerExpiry = "Z" + suffix();
+    create(soonerExpiry, 97, start, Instant.now().plus(Duration.ofDays(2)), 5).andExpect(status().isCreated());
+
+    String body = mvc.perform(get("/api/v1/vouchers").param("size", "100")).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsString();
+    List<Integer> percents = JsonPath.read(body, "$.data.content[*].discountPercent");
+    assertThat(percents).isSortedAccordingTo(java.util.Comparator.reverseOrder());
+    List<String> codes = JsonPath.read(body, "$.data.content[*].code");
+    assertThat(codes.indexOf(soonerExpiry)).isLessThan(codes.indexOf(laterExpiry));
+    assertThat(codes.indexOf(laterExpiry)).isLessThan(codes.indexOf(lowest));
+
+    mvc.perform(get("/api/v1/vouchers").param("page", "0").param("size", "1"))
+        .andExpect(jsonPath("$.data.content.length()").value(1))
+        .andExpect(jsonPath("$.data.totalElements").value(codes.size()));
+    mvc.perform(get("/api/v1/vouchers").param("size", "101")).andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void validatingACodeStillRequiresACustomer() throws Exception {
+    String code = activeVoucher(10, 5);
+    mvc.perform(get("/api/v1/vouchers/" + code + "/validate")).andExpect(status().isUnauthorized());
+    validate(sellerA, code).andExpect(status().isForbidden());
+  }
+
   // ---------- hàm hỗ trợ ----------
 
   /** Voucher đang dùng được, mã ngẫu nhiên (DB test dùng chung giữa các test). */

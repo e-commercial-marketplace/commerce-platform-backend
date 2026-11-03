@@ -62,6 +62,8 @@ public class SecurityConfig {
     API + "/products/*",
     API + "/products/*/reviews",
     API + "/categories",
+    // Chỉ đúng danh sách voucher; /vouchers/{code}/validate vẫn thuộc CUSTOMER_ONLY.
+    API + "/vouchers",
     API + "/sellers/*",
     API + "/payments/vnpay/ipn",
     API + "/payments/vnpay/return"
