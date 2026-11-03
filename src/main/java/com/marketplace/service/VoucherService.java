@@ -4,6 +4,7 @@ import com.marketplace.common.response.PageResponse;
 import com.marketplace.dto.request.VoucherCreateRequest;
 import com.marketplace.dto.request.VoucherUpdateRequest;
 import com.marketplace.dto.response.VoucherResponse;
+import com.marketplace.dto.response.VoucherSummaryResponse;
 import com.marketplace.entity.Voucher;
 import java.time.Instant;
 
@@ -18,6 +19,9 @@ public interface VoucherService {
 
   /** Hết hạn ngay, không xoá (giữ lịch sử). */
   VoucherResponse expireVoucher(String code);
+
+  /** Voucher đang dùng được cho mọi người xem, kể cả Guest. Không giữ chỗ, không trừ lượt. */
+  PageResponse<VoucherSummaryResponse> listUsableVouchers(int page, int size);
 
   /** Khách kiểm tra mã: dùng được thì trả voucher, không thì 404 hoặc 409 (không trừ lượt). */
   VoucherResponse checkVoucherUsable(String code);

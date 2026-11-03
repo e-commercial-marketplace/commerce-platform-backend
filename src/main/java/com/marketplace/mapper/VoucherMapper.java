@@ -1,6 +1,7 @@
 package com.marketplace.mapper;
 
 import com.marketplace.dto.response.VoucherResponse;
+import com.marketplace.dto.response.VoucherSummaryResponse;
 import com.marketplace.entity.Voucher;
 import org.mapstruct.Mapper;
 
@@ -9,4 +10,6 @@ import org.mapstruct.Mapper;
 public interface VoucherMapper {
 
   VoucherResponse toResponse(Voucher voucher);
+
+  VoucherSummaryResponse toSummary(Voucher voucher);
 }

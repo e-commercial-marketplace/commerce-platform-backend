@@ -6,6 +6,7 @@ import com.marketplace.common.util.TimeProvider;
 import com.marketplace.dto.request.VoucherCreateRequest;
 import com.marketplace.dto.request.VoucherUpdateRequest;
 import com.marketplace.dto.response.VoucherResponse;
+import com.marketplace.dto.response.VoucherSummaryResponse;
 import com.marketplace.entity.Voucher;
 import com.marketplace.mapper.VoucherMapper;
 import com.marketplace.repository.VoucherRepository;
@@ -106,6 +107,13 @@ public class VoucherServiceImpl implements VoucherService {
     }
     voucher.setValidTo(now);
     return voucherMapper.toResponse(voucher);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public PageResponse<VoucherSummaryResponse> listUsableVouchers(int page, int size) {
+    return PageResponse.from(
+        voucherRepository.findUsable(timeProvider.now(), PageRequest.of(page, size)), voucherMapper::toSummary);
   }
 
   @Override

@@ -2,6 +2,8 @@ package com.marketplace.repository;
 
 import com.marketplace.entity.Voucher;
 import java.time.Instant;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,4 +23,10 @@ public interface VoucherRepository extends JpaRepository<Voucher, String> {
       "update Voucher v set v.timesUsed = v.timesUsed + 1 where v.code = :code"
           + " and v.validFrom <= :now and v.validTo > :now and v.timesUsed < v.usageLimit")
   int consume(@Param("code") String code, @Param("now") Instant now);
+
+  /** Voucher đang dùng được (cùng điều kiện với {@link #consume}): giảm nhiều nhất trước; code giữ phân trang ổn định. */
+  @Query(
+      "select v from Voucher v where v.validFrom <= :now and v.validTo > :now and v.timesUsed < v.usageLimit"
+          + " order by v.discountPercent desc, v.validTo asc, v.code asc")
+  Page<Voucher> findUsable(@Param("now") Instant now, Pageable pageable);
 }
