@@ -319,6 +319,15 @@ class SellerProductApiTest {
   // ---------- danh sách và chi tiết của chính seller ----------
 
   @Test
+  void sellerSearchIgnoresAccentsAndStaysOnOwnProducts() throws Exception {
+    User other = support.user(Role.SELLER, SellerStatus.APPROVED);
+    product(seller, "Đồng hồ của tôi", 1);
+    product(other, "Đồng hồ của người khác", 1);
+
+    list("q=dong ho").andExpect(jsonPath("$.data.content[*].name", contains("Đồng hồ của tôi")));
+  }
+
+  @Test
   void sellerListsOnlyOwnProductsIncludingHiddenOnes() throws Exception {
     User other = support.user(Role.SELLER, SellerStatus.APPROVED);
     product(seller, "Visible", 1);

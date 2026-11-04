@@ -15,6 +15,8 @@ import com.marketplace.repository.CategoryRepository;
 import com.marketplace.repository.ProductRepository;
 import com.marketplace.repository.UserRepository;
 import java.math.BigDecimal;
+import java.text.Normalizer;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -103,6 +105,48 @@ class CatalogPublicApiTest {
 
     list("categoryId=" + category.getId() + "&q=shoes")
         .andExpect(jsonPath("$.data.content[*].name", contains("Red Shoes", "Blue Bag")));
+  }
+
+  @Test
+  void searchIgnoresCaseAndVietnameseAccents() throws Exception {
+    save("Đồng hồ Casio", "chống nước", "10.00", 1, "0.00", 0, true);
+    save("Dép da", "bền", "10.00", 1, "0.00", 0, true);
+    save("Túi xách", "có ngăn để đồng hồ", "10.00", 1, "0.00", 0, true);
+
+    for (String q : List.of("dong ho", "đồng hồ", "ĐỒNG HỒ", "Dong Ho")) {
+      list("categoryId=" + category.getId() + "&q=" + q)
+          .andExpect(jsonPath("$.data.totalElements").value(2))
+          .andExpect(jsonPath("$.data.content[*].name", contains("Đồng hồ Casio", "Túi xách")));
+    }
+    list("categoryId=" + category.getId() + "&q=dep")
+        .andExpect(jsonPath("$.data.content[0].name").value("Dép da"));
+  }
+
+  @Test
+  void searchAcceptsCombiningAccentsFromKeyboards() throws Exception {
+    save("Đồng hồ Casio", "chống nước", "10.00", 1, "0.00", 0, true);
+
+    String decomposed = Normalizer.normalize("đồng hồ", Normalizer.Form.NFD);
+    list("categoryId=" + category.getId() + "&q=" + decomposed)
+        .andExpect(jsonPath("$.data.totalElements").value(1));
+  }
+
+  @Test
+  void searchLooksInTheCategoryNameAndRanksItBetweenNameAndDescription() throws Exception {
+    // Từ khoá có UUID để chỉ khớp dữ liệu của test này (DB test dùng chung).
+    String suffix = UUID.randomUUID().toString();
+    String keyword = "quạt mát " + suffix;
+    Category cooling = categoryRepository.save(Category.builder().name(keyword).build());
+    // Rating ngược với thứ tự mong muốn: chỉ độ liên quan mới xếp được đúng.
+    save(keyword + " mini", "nhỏ", "10.00", 1, "1.00", 0, true);
+    save("Túi nhỏ", "hợp với " + keyword, "10.00", 1, "5.00", 0, true);
+    Product byCategory = save("Máy X", "gió mạnh", "10.00", 1, "3.00", 0, true);
+    byCategory.setCategory(cooling);
+    productRepository.save(byCategory);
+
+    list("q=quat mat " + suffix)
+        .andExpect(jsonPath("$.data.totalElements").value(3))
+        .andExpect(jsonPath("$.data.content[*].name", contains(keyword + " mini", "Máy X", "Túi nhỏ")));
   }
 
   @Test
