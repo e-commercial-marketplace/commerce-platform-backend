@@ -2,7 +2,9 @@ package com.marketplace.repository;
 
 import com.marketplace.common.util.LikePattern;
 import com.marketplace.entity.Product;
+import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Path;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.UUID;
@@ -44,30 +46,42 @@ public final class ProductSpecifications {
     return (root, query, cb) -> root.get("id").in(ids);
   }
 
-  /** Tìm không phân biệt hoa thường trong tên hoặc mô tả. */
+  /** Tìm không phân biệt hoa thường và dấu tiếng Việt trong tên, tên danh mục hoặc mô tả. */
   public static Specification<Product> textMatches(String text) {
-    String pattern = LikePattern.contains(text);
+    String pattern = LikePattern.containsIgnoringAccents(text);
     return (root, query, cb) ->
         cb.or(
-            cb.like(cb.lower(root.get("name")), pattern, LikePattern.ESCAPE),
-            cb.like(cb.lower(root.<String>get("description")), pattern, LikePattern.ESCAPE));
+            cb.like(folded(cb, root.get("name")), pattern, LikePattern.ESCAPE),
+            cb.like(folded(cb, root.get("category").get("name")), pattern, LikePattern.ESCAPE),
+            cb.like(folded(cb, root.get("description")), pattern, LikePattern.ESCAPE));
+  }
+
+  /** Cột đã về chữ thường và bỏ dấu: {@code translate(lower(cột), có dấu, không dấu)}. */
+  private static Expression<String> folded(CriteriaBuilder cb, Path<String> column) {
+    return cb.function(
+        "translate",
+        String.class,
+        cb.lower(column),
+        cb.literal(LikePattern.VIETNAMESE_ACCENTED),
+        cb.literal(LikePattern.VIETNAMESE_PLAIN));
   }
 
   /**
-   * Sắp theo độ liên quan: product khớp ở tên đứng trước product chỉ khớp ở mô tả, rồi tới rating
+   * Sắp theo độ liên quan: khớp ở tên, rồi khớp ở tên danh mục, rồi chỉ khớp ở mô tả, rồi tới rating
    * giảm dần và {@code id} tăng dần để thứ tự ổn định.
    *
    * <p>Spec này đặt {@code ORDER BY} trực tiếp, nên chỉ có tác dụng khi {@code Pageable} không kèm
    * sort (Spring Data sẽ ghi đè nếu có sort). Câu count không cần thứ tự nên bị bỏ qua.
    */
   public static Specification<Product> orderedByRelevance(String text) {
-    String pattern = LikePattern.contains(text);
+    String pattern = LikePattern.containsIgnoringAccents(text);
     return (root, query, cb) -> {
       if (query != null && !isCountQuery(query.getResultType())) {
         Expression<Integer> nameMatchRank =
             cb.<Integer>selectCase()
-                .when(cb.like(cb.lower(root.get("name")), pattern, LikePattern.ESCAPE), 0)
-                .otherwise(1);
+                .when(cb.like(folded(cb, root.get("name")), pattern, LikePattern.ESCAPE), 0)
+                .when(cb.like(folded(cb, root.get("category").get("name")), pattern, LikePattern.ESCAPE), 1)
+                .otherwise(2);
         query.orderBy(
             cb.asc(nameMatchRank),
             cb.desc(root.get("ratingAverage")),
