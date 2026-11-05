@@ -13,6 +13,13 @@ import org.springframework.ai.tool.annotation.ToolParam;
  */
 public class ProductSearchTools {
 
+  /**
+   * Phần model cần đọc của một product. Bỏ id, ảnh và id người bán vì model không dùng, mà chúng chiếm khoảng
+   * hai phần ba số token của kết quả tool; response vẫn đủ các trường đó nhờ {@link #lastResult()}.
+   */
+  public record ProductForModel(
+      String name, BigDecimal price, int stock, BigDecimal ratingAverage, int reviewCount) {}
+
   private final AiProductSearch productSearch;
   private AiProductSearch.Result lastResult;
 
@@ -22,8 +29,8 @@ public class ProductSearchTools {
 
   @Tool(
       description =
-          "List the names of all product categories of the marketplace. Use it when the user asks what the "
-              + "shop sells or wants to buy something without saying what.")
+          "List the names of all product categories of the marketplace. Use it only when the user asks what "
+              + "the shop sells.")
   public List<String> listCategories() {
     return productSearch.categoryNames();
   }
@@ -33,10 +40,10 @@ public class ProductSearchTools {
           "Search listed marketplace products. Returns at most 5 products with name, price in VND, "
               + "rating and review count. Use it for every question about products, prices or stock. "
               + "All parameters are optional; with none it returns the top-rated products.")
-  public List<AiProductResponse> searchProducts(
+  public List<ProductForModel> searchProducts(
       @ToolParam(required = false, description = "Keywords from the product name, e.g. 'iphone', 'macbook'")
           String text,
-      @ToolParam(required = false, description = "A category name exactly as returned by listCategories")
+      @ToolParam(required = false, description = "A category name from the list in the system prompt")
           String category,
       @ToolParam(required = false, description = "Minimum price in VND") Double minPrice,
       @ToolParam(required = false, description = "Maximum price in VND") Double maxPrice,
@@ -50,12 +57,17 @@ public class ProductSearchTools {
     lastResult =
         productSearch.search(
             keywords, found.orElse(null), decimal(minPrice), decimal(maxPrice), decimal(minRating), sort);
-    return lastResult.products();
+    return lastResult.products().stream().map(ProductSearchTools::forModel).toList();
   }
 
   /** Lần tìm cuối; {@code null} nếu model không gọi tool. */
   public AiProductSearch.Result lastResult() {
     return lastResult;
+  }
+
+  private static ProductForModel forModel(AiProductResponse product) {
+    return new ProductForModel(
+        product.name(), product.price(), product.stock(), product.ratingAverage(), product.reviewCount());
   }
 
   private static BigDecimal decimal(Double value) {
