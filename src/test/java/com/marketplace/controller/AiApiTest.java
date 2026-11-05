@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.marketplace.ai.ProviderCooldown;
 import com.marketplace.ai.rag.PolicyKnowledge;
+import com.marketplace.entity.Category;
 import com.marketplace.entity.User;
 import com.marketplace.enums.Role;
 import com.marketplace.enums.SellerStatus;
@@ -148,6 +149,19 @@ class AiApiTest {
     assertThat(toolNames).contains("listCategories", "searchProducts", "searchPolicies");
     // Backend không tự tra điều khoản khi model chưa gọi tool.
     verify(policyKnowledge, never()).findRelevant(any());
+  }
+
+  @Test
+  void theSystemPromptNamesTheCategoriesThatHaveListedProducts() throws Exception {
+    Category category = support.category();
+    support.product(support.user(Role.SELLER, SellerStatus.APPROVED), category, "Tai nghe", "100.00", 5);
+
+    askAsGuest("{\"message\":\"tìm tai nghe\"}").andExpect(jsonPath("$.data.answeredBy").value("AI"));
+
+    ArgumentCaptor<Prompt> prompt = ArgumentCaptor.forClass(Prompt.class);
+    verify(chatModel).call(prompt.capture());
+    String system = prompt.getValue().getSystemMessage().getText();
+    assertThat(system).contains(category.getName()).doesNotContain("{categories}");
   }
 
   // ---------- trả lời bằng luật ----------

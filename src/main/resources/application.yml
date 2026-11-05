@@ -25,6 +25,9 @@ spring:
   # Starter bắt buộc có api-key lúc khởi động: thiếu thì dùng giá trị giả "not-configured"; AiServiceImpl
   # thấy AI_API_KEY rỗng thì không bao giờ gọi provider (trả lời bằng luật thay thế).
   ai:
+    # Mặc định 10 lần, có thể giữ request nhiều phút khi provider quá tải (5xx); thử 2 lần rồi chuyển bước sau.
+    retry:
+      max-attempts: 2
     openai:
       base-url: ${AI_BASE_URL:https://api.openai.com}
       api-key: ${AI_API_KEY:not-configured}
@@ -111,6 +114,12 @@ app:
     api-key: ${AI_API_KEY:}
     # false: không trả lời bằng luật; LLM không dùng được thì trả 429 hoặc 503 AI_UNAVAILABLE.
     rules-enabled: ${APP_AI_RULES_ENABLED:true}
+    # Provider dự phòng, mặc định Gemini qua endpoint tương thích OpenAI. Key rỗng thì không dựng ChatClient này.
+    fallback:
+      api-key: ${AI_FALLBACK_API_KEY:}
+      base-url: ${AI_FALLBACK_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+      completions-path: ${AI_FALLBACK_COMPLETIONS_PATH:/chat/completions}
+      model: ${AI_FALLBACK_MODEL:gemini-2.5-flash}
     # Có AI_EMBEDDING_API_KEY thì bật RAG điều khoản (cần PostgreSQL có pgvector); rỗng thì tắt.
     embedding-api-key: ${AI_EMBEDDING_API_KEY:}
   cloudinary:
